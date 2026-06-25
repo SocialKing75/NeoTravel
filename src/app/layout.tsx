@@ -1,5 +1,19 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { IBM_Plex_Sans, Sora } from "next/font/google";
+
+const ibm = IBM_Plex_Sans({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-ibm",
+  display: "swap",
+});
+const sora = Sora({
+  subsets: ["latin"],
+  weight: ["600", "700"],
+  variable: "--font-sora",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Neotravel - Transport de groupe intelligent",
@@ -9,11 +23,9 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="fr">
+    <html lang="fr" className={`${ibm.variable} ${sora.variable}`}>
       <body>{children}</body>
     </html>
   );
