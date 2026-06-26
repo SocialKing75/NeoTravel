@@ -254,14 +254,13 @@ function Landing({
   const [chatInput, setChatInput] = useState("");
   const [heroQuery, setHeroQuery] = useState("");
   const [agentTyping, setAgentTyping] = useState(false);
-<<<<<<< HEAD
-  const [form, setForm] = useState<FormData>(INITIAL_FORM);
+  const [agentStage, setAgentStage] = useState(0);
   const formRef = useRef<HTMLDivElement>(null);
-  const sessionId = useRef<string>(
-    `web-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-  );
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activeDemandeId = useRef<string | null>(null);
+  const tripInfo = useRef<TripInfo>({});
+  const sessionId = useRef<string>(`web-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
 
-  // Persiste le sessionId entre les rechargements pour garder la mémoire conversationnelle.
   useEffect(() => {
     const stored = localStorage.getItem("nt_session_id");
     if (stored) {
@@ -270,16 +269,6 @@ function Landing({
       localStorage.setItem("nt_session_id", sessionId.current);
     }
   }, []);
-
-  const set = <K extends keyof FormData>(k: K, v: FormData[K]) =>
-    setForm(f => ({ ...f, [k]: v }));
-=======
-  const [agentStage, setAgentStage] = useState(0);
-  const formRef = useRef<HTMLDivElement>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const activeDemandeId = useRef<string | null>(null);
-  const tripInfo = useRef<TripInfo>({});
->>>>>>> 9366d65dd3902e452f1ba41e8f3c69abbd166368
 
   const scrollToForm = () => {
     if (formRef.current) {
@@ -294,50 +283,21 @@ function Landing({
     if (activeDemandeId.current) appendMessage(activeDemandeId.current, msg);
   };
 
-<<<<<<< HEAD
-  const ERROR_MSG =
-    "Désolé, je n'arrive pas à joindre l'agent pour le moment. Réessayez dans un instant.";
-
   const callAgent = async (message: string): Promise<string | null> => {
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message,
-          sessionId: sessionId.current,
-          context: form,
-        }),
+        body: JSON.stringify({ message, sessionId: sessionId.current }),
       });
       const data = await res.json();
-      if (res.ok && data.reply && String(data.reply).trim()) {
-        return String(data.reply);
-      }
+      if (res.ok && data.reply && String(data.reply).trim()) return String(data.reply);
       return null;
     } catch {
       return null;
     }
   };
 
-  const openChat = async () => {
-    setChatOpen(true);
-    setMessages([]);
-    setAgentTyping(true);
-    const trip = `${form.depart || "—"} → ${form.destination || "—"}`;
-    const pax = form.passagers ? `${form.passagers} passagers` : "groupe non précisé";
-    const reply = await callAgent(
-      `Nouvelle demande de devis. Trajet : ${trip}. ${pax}.`,
-    );
-    setMessages([{ role: "agent", text: reply ?? ERROR_MSG }]);
-    setAgentTyping(false);
-  };
-
-  const sendToAgent = async (text: string) => {
-    setAgentTyping(true);
-    const reply = await callAgent(text);
-    setMessages(m => [...m, { role: "agent", text: reply ?? ERROR_MSG }]);
-    setAgentTyping(false);
-=======
   const priceMsg = () => {
     const pax = parseInt(tripInfo.current.passagers ?? "", 10) || 30;
     const low = 1200 + pax * 14;
@@ -356,7 +316,7 @@ function Landing({
     }, 1000);
   };
 
-  const openChat = () => {
+  const openChat = async () => {
     const query = heroQuery.trim();
     setChatActive(true);
     setAgentStage(0);
@@ -376,13 +336,27 @@ function Landing({
 
     const trip = parsed.depart && parsed.destination ? `${parsed.depart} → ${parsed.destination}` : "votre trajet";
     const pax = parsed.passagers ? `${parsed.passagers} passagers` : "votre groupe";
-    timer.current = setTimeout(() => {
-      addMsg("agent", `Bonjour, je suis l'agent Neotravel. J'ai bien noté votre trajet ${trip} pour ${pax}. Pour affiner le devis, souhaitez-vous un aller simple ou un aller-retour ?`);
+    const apiReply = await callAgent(query || `Nouvelle demande. Trajet : ${trip}. ${pax}.`);
+    if (apiReply) {
+      addMsg("agent", apiReply);
       setAgentTyping(false);
-    }, 850);
+    } else {
+      timer.current = setTimeout(() => {
+        addMsg("agent", `Bonjour, je suis l'agent Neotravel. J'ai bien noté votre trajet ${trip} pour ${pax}. Pour affiner le devis, souhaitez-vous un aller simple ou un aller-retour ?`);
+        setAgentTyping(false);
+      }, 850);
+    }
   };
 
-  const respond = (userText: string) => {
+  const respond = async (userText: string) => {
+    setAgentTyping(true);
+    const apiReply = await callAgent(userText);
+    if (apiReply) {
+      addMsg("agent", apiReply);
+      setAgentTyping(false);
+      setAgentStage(s => s + 1);
+      return;
+    }
     const t = userText.toLowerCase();
     let reply: string;
     if (/(prix|tarif|co[uû]t|combien|budget|devis)/.test(t)) {
@@ -400,7 +374,6 @@ function Landing({
     }
     setAgentStage(s => s + 1);
     pushAgent(reply);
->>>>>>> 9366d65dd3902e452f1ba41e8f3c69abbd166368
   };
 
   const sendChat = () => {
@@ -408,7 +381,7 @@ function Landing({
     if (!text) return;
     addMsg("user", text);
     setChatInput("");
-    sendToAgent(text);
+    respond(text);
   };
 
   const chatTags = [
@@ -423,13 +396,8 @@ function Landing({
   };
 
   const onQuick = (text: string) => {
-<<<<<<< HEAD
-    setMessages(m => [...m, { role: "user", text }]);
-    sendToAgent(text);
-=======
     addMsg("user", text);
     respond(text);
->>>>>>> 9366d65dd3902e452f1ba41e8f3c69abbd166368
   };
 
   return (
@@ -766,81 +734,6 @@ function Landing({
           </div>
         </div>
       </footer>
-<<<<<<< HEAD
-
-      {/* CHAT DRAWER */}
-      {chatOpen && (
-        <>
-          <div className="nt-overlay" onClick={() => setChatOpen(false)} />
-          <div className="nt-drawer">
-            <div className="nt-drawer-header">
-              <div className="nt-drawer-avatar">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0E1C2B" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M8 18V6l8 12V6" />
-                </svg>
-              </div>
-              <div className="nt-drawer-info">
-                <div className="nt-drawer-name">Agent Neotravel</div>
-                <div className="nt-drawer-status">
-                  <span className="nt-status-dot" />
-                  En ligne · répond en quelques secondes
-                </div>
-              </div>
-              <button className="nt-drawer-close" onClick={() => setChatOpen(false)} aria-label="Fermer">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                  <path d="M18 6 6 18M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            <div className="nt-drawer-recap">
-              <span className="nt-recap-label">DEMANDE</span>
-              <span className="nt-recap-trip">{form.depart || "Départ"} → {form.destination || "Destination"}</span>
-              {form.passagers && <span className="nt-recap-pax">{form.passagers} pers.</span>}
-            </div>
-
-            <div className="nt-drawer-messages">
-              {messages.map((m, i) => (
-                <div key={i} className={`nt-msg-row ${m.role}`}>
-                  <div className={`nt-bubble ${m.role}`}>{m.text}</div>
-                </div>
-              ))}
-              {agentTyping && (
-                <div className="nt-msg-row agent">
-                  <div className="nt-bubble agent">
-                    <div className="nt-typing">
-                      <span /><span /><span />
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="nt-drawer-quicks">
-              {["Paris → Lyon, 45 pers.", "Devis pour un séminaire", "Navette aéroport", "Voyage scolaire"].map(q => (
-                <button key={q} className="nt-quick" onClick={() => onQuick(q)}>{q}</button>
-              ))}
-            </div>
-
-            <div className="nt-drawer-input">
-              <textarea
-                value={chatInput}
-                onChange={e => setChatInput(e.target.value)}
-                onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
-                rows={1}
-                placeholder="Écrivez votre message…"
-              />
-              <button className="nt-send-btn" onClick={sendChat} aria-label="Envoyer">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0E1C2B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" />
-                </svg>
-              </button>
-            </div>
-          </div>
-        </>
-      )}
-=======
->>>>>>> 9366d65dd3902e452f1ba41e8f3c69abbd166368
     </div>
   );
 }
