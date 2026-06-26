@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 
 type Screen = "landing" | "devis" | "dashboard" | "demandes" | "agent";
 
@@ -66,10 +66,21 @@ function Landing({ setScreen }: { setScreen: (s: Screen) => void }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [agentTyping, setAgentTyping] = useState(false);
-  const [agentStage, setAgentStage] = useState(0);
   const [form, setForm] = useState<FormData>(INITIAL_FORM);
   const formRef = useRef<HTMLDivElement>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sessionId = useRef<string>(
+    `web-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  );
+
+  // Persiste le sessionId entre les rechargements pour garder la mémoire conversationnelle.
+  useEffect(() => {
+    const stored = localStorage.getItem("nt_session_id");
+    if (stored) {
+      sessionId.current = stored;
+    } else {
+      localStorage.setItem("nt_session_id", sessionId.current);
+    }
+  }, []);
 
   const set = <K extends keyof FormData>(k: K, v: FormData[K]) =>
     setForm(f => ({ ...f, [k]: v }));
@@ -86,55 +97,48 @@ function Landing({ setScreen }: { setScreen: (s: Screen) => void }) {
     setStep(s => s + 1);
   };
 
-  const priceMsg = () => {
-    const pax = parseInt(form.passagers, 10) || 30;
-    const low = 1200 + pax * 14;
-    const high = Math.round(low * 1.32);
-    const fmt = (n: number) => n.toLocaleString("fr-FR");
-    return `D'après les éléments fournis, le tarif indicatif se situe entre ${fmt(low)} € et ${fmt(high)} € TTC, chauffeur et carburant inclus. Tarif indicatif — la distance exacte sera confirmée avant l'envoi du devis définitif.`;
+  const ERROR_MSG =
+    "Désolé, je n'arrive pas à joindre l'agent pour le moment. Réessayez dans un instant.";
+
+  const callAgent = async (message: string): Promise<string | null> => {
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message,
+          sessionId: sessionId.current,
+          context: form,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.reply && String(data.reply).trim()) {
+        return String(data.reply);
+      }
+      return null;
+    } catch {
+      return null;
+    }
   };
 
-  const pushAgent = (text: string) => {
-    setAgentTyping(true);
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => {
-      setMessages(m => [...m, { role: "agent", text }]);
-      setAgentTyping(false);
-    }, 1000);
-  };
-
-  const openChat = () => {
+  const openChat = async () => {
     setChatOpen(true);
     setMessages([]);
-    setAgentStage(0);
     setAgentTyping(true);
-    if (timer.current) clearTimeout(timer.current);
     const trip = `${form.depart || "—"} → ${form.destination || "—"}`;
-    const pax = form.passagers ? `${form.passagers} passagers` : "votre groupe";
-    timer.current = setTimeout(() => {
-      setMessages([{ role: "agent", text: `Bonjour, je suis l'agent Neotravel. J'ai bien noté votre trajet ${trip} pour ${pax}. Pour affiner le devis, souhaitez-vous un aller simple ou un aller-retour ?` }]);
-      setAgentTyping(false);
-    }, 850);
+    const pax = form.passagers ? `${form.passagers} passagers` : "groupe non précisé";
+    const reply = await callAgent(
+      `Nouvelle demande de devis. Trajet : ${trip}. ${pax}.`,
+    );
+    setMessages([{ role: "agent", text: reply ?? ERROR_MSG }]);
+    setAgentTyping(false);
   };
 
-  const respond = (userText: string) => {
-    const t = userText.toLowerCase();
-    let reply: string;
-    if (/(prix|tarif|co[uû]t|combien|budget|devis)/.test(t)) {
-      reply = priceMsg();
-    } else if (/(conseiller|humain|appel|rappel|t[ée]l[ée]phone|parler)/.test(t)) {
-      reply = `Bien sûr. Un chargé d'affaires Neotravel peut vous rappeler${form.tel ? ` au ${form.tel}` : ""} sous 24 h ouvrées.`;
-    } else if (agentStage === 0) {
-      reply = `Parfait. Pour ${form.depart || "votre départ"} → ${form.destination || "votre destination"}, j'estime la distance et le temps de conduite. Avez-vous une date précise, ou êtes-vous flexible ?`;
-    } else if (agentStage === 1) {
-      reply = priceMsg();
-    } else if (agentStage === 2) {
-      reply = `Très bien. Je peux vous envoyer ce devis par email${form.email ? ` à ${form.email}` : ""} et programmer un rappel. Souhaitez-vous que je le fasse ?`;
-    } else {
-      reply = "C'est noté, votre demande est transmise à notre équipe. Avez-vous une exigence particulière à ajouter ?";
-    }
-    setAgentStage(s => s + 1);
-    pushAgent(reply);
+  const sendToAgent = async (text: string) => {
+    setAgentTyping(true);
+    const reply = await callAgent(text);
+    setMessages(m => [...m, { role: "agent", text: reply ?? ERROR_MSG }]);
+    setAgentTyping(false);
   };
 
   const sendChat = () => {
@@ -142,12 +146,12 @@ function Landing({ setScreen }: { setScreen: (s: Screen) => void }) {
     if (!text) return;
     setMessages(m => [...m, { role: "user", text }]);
     setChatInput("");
-    respond(text);
+    sendToAgent(text);
   };
 
   const onQuick = (text: string) => {
     setMessages(m => [...m, { role: "user", text }]);
-    respond(text);
+    sendToAgent(text);
   };
 
   return (
@@ -538,7 +542,7 @@ function Landing({ setScreen }: { setScreen: (s: Screen) => void }) {
             </div>
 
             <div className="nt-drawer-quicks">
-              {["Aller-retour", "Quel est le tarif ?", "Je suis flexible sur les dates", "Parler à un conseiller"].map(q => (
+              {["Paris → Lyon, 45 pers.", "Devis pour un séminaire", "Navette aéroport", "Voyage scolaire"].map(q => (
                 <button key={q} className="nt-quick" onClick={() => onQuick(q)}>{q}</button>
               ))}
             </div>
