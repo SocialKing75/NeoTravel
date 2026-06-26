@@ -2,7 +2,54 @@ import os
 import httpx
 import math
 from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+import uvicorn
 
+# Initialisation de l'application FastAPI
+app = FastAPI(title="NeoTravel Pricing API")
+
+# Contrat d'interface (les données reçues au format JSON)
+class DevisRequest(BaseModel):
+    distance_km: int
+    aller_retour: bool
+    saison: str
+    days_to_departure: int
+    capacity: int
+
+
+# --- AJOUTE DE LA ROUTE JUSTE AVANT LE BLOC "if __name__ == '__main__':" ---
+
+@app.post("/calculer-devis")
+async def api_calculate_price(payload: DevisRequest):
+    """
+    Route API appelée par n8n pour calculer un devis.
+    Prend en charge le garde-fou des > 85 passagers.
+    """
+    try:
+        # Appelle ta fonction de calcul existante
+        resultat = await calculate_price(
+            distance_km=payload.distance_km,
+            aller_retour=payload.aller_retour,
+            saison=payload.saison,
+            days_to_departure=payload.days_to_departure,
+            capacity=payload.capacity
+        )
+        return {"status": "success", "data": resultat}
+        
+    except ValueError as e:
+        # Intercepte le cas > 85 passagers et renvoie le statut "flux_manuel" demandé par le cadrage
+        return {
+            "status": "flux_manuel",
+            "message": str(e)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur interne : {str(e)}")
+
+# --- BLOC DE FIN POUR LANCER LE SERVEUR WEB ---
+if __name__ == "__main__":
+    # Permet de lancer le serveur web localement sur le port 8000
+    uvicorn.run(app, host="0.0.0.0", port=8000)
 # Charger les variables d'environnement du fichier .env
 load_dotenv()
 
