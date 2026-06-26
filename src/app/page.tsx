@@ -2,57 +2,235 @@
 
 import { useState, useRef, useEffect } from "react";
 
-type Screen = "landing" | "devis" | "dashboard" | "demandes" | "agent";
+type Screen = "landing" | "dashboard" | "demandes";
 
-type Message = { role: "agent" | "user"; text: string };
+type ChatMessage = { role: "agent" | "user"; text: string; sentAt: Date };
 
-type FormData = {
-  depart: string;
-  destination: string;
-  passagers: string;
-  allerRetour: boolean;
-  dateAller: string;
-  dateRetour: string;
-  heure: string;
-  vehicule: string;
-  bagages: boolean;
-  assurance: boolean;
-  pmr: boolean;
-  nom: string;
+type DemandeStatus = "Nouveau" | "En cours" | "Devis envoyé" | "En attente";
+
+type Demande = {
+  id: string;
+  prospect: string;
   email: string;
   tel: string;
+  depart: string;
+  destination: string;
+  passagers: number;
+  tripDate: string;
+  vehicule: string;
+  statut: DemandeStatus;
+  tarifMin: number;
+  tarifMax: number;
+  createdAt: Date;
+  messages: ChatMessage[];
 };
 
-const INITIAL_FORM: FormData = {
-  depart: "", destination: "", passagers: "",
-  allerRetour: true, dateAller: "", dateRetour: "", heure: "",
-  vehicule: "", bagages: false, assurance: false, pmr: false,
-  nom: "", email: "", tel: "",
-};
+type TripInfo = { depart?: string; destination?: string; passagers?: string; date?: string };
 
-const demandes = [
-  { prospect: "Jean Dupont", email: "jean.dupont@email.fr", trajet: "Paris → Lyon", date: "24 juin", passagers: 15, statut: "Devis envoyé", badge: "lime" },
-  { prospect: "Mairie de Rennes", email: "transport@rennes.fr", trajet: "Rennes → Nantes", date: "24 juin", passagers: 40, statut: "En relance", badge: "warning" },
-  { prospect: "Asso. Rando Alsace", email: "contact@rando67.fr", trajet: "Strasbourg → Colmar", date: "23 juin", passagers: 22, statut: "Qualifié", badge: "blue" },
-  { prospect: "TechCorp SA", email: "rh@techcorp.fr", trajet: "Lyon → Paris CDG", date: "23 juin", passagers: 53, statut: "Nouveau", badge: "blue" },
-  { prospect: "Collège Jean Moulin", email: "sortie@cjm.fr", trajet: "Bordeaux → Dordogne", date: "22 juin", passagers: 38, statut: "Accepté", badge: "lime" },
-  { prospect: "Club Football Caen", email: "bus@fbcaen.fr", trajet: "Caen → Paris", date: "21 juin", passagers: 28, statut: "Refusé", badge: "danger" },
-];
+/* ─── TIME / FORMAT HELPERS ───────────────────────────────────────────────── */
+
+function startOfDay(d: Date) {
+  const c = new Date(d);
+  c.setHours(0, 0, 0, 0);
+  return c;
+}
+
+function formatTime(d: Date) {
+  return d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+}
+
+function formatDayLabel(d: Date, now: Date) {
+  const dayDiff = Math.round((startOfDay(now).getTime() - startOfDay(d).getTime()) / 86400000);
+  if (dayDiff <= 0) return `Auj. ${formatTime(d)}`;
+  if (dayDiff === 1) return `Hier ${formatTime(d)}`;
+  return d.toLocaleDateString("fr-FR", { day: "numeric", month: "long" });
+}
+
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/);
+  return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase();
+}
+
+function statusBadgeClass(statut: DemandeStatus) {
+  if (statut === "En cours") return "blue";
+  if (statut === "En attente") return "warning";
+  return "lime";
+}
+
+function useNow(intervalMs = 30000) {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), intervalMs);
+    return () => clearInterval(id);
+  }, [intervalMs]);
+  return now;
+}
+
+function parseTripQuery(query: string): TripInfo {
+  const arrowMatch = query.match(/([A-Za-zÀ-ÖØ-öø-ÿ' -]{2,30}?)\s*(?:→|->)\s*([A-Za-zÀ-ÖØ-öø-ÿ' -]{2,30})/);
+  const paxMatch = query.match(/(\d+)\s*(?:personnes?|passagers?|pers\.?)/i);
+  const dateMatch = query.match(/\b(\d{1,2}\s+(?:janvier|f[ée]vrier|mars|avril|mai|juin|juillet|ao[ûu]t|septembre|octobre|novembre|d[ée]cembre)(?:\s+\d{4})?)/i);
+  return {
+    depart: arrowMatch?.[1]?.trim(),
+    destination: arrowMatch?.[2]?.trim().split(",")[0]?.trim(),
+    passagers: paxMatch?.[1],
+    date: dateMatch?.[1]?.trim(),
+  };
+}
+
+/* ─── MOCK DEMANDES (timestamps anchored to the real current date) ──────────── */
+
+function buildInitialDemandes(): Demande[] {
+  const now = new Date();
+  const today = new Date(now); today.setHours(9, 14, 0, 0);
+  const yesterday = new Date(now); yesterday.setDate(yesterday.getDate() - 1); yesterday.setHours(14, 32, 0, 0);
+  const threeDaysAgo = new Date(now); threeDaysAgo.setDate(threeDaysAgo.getDate() - 3); threeDaysAgo.setHours(11, 5, 0, 0);
+  const fiveDaysAgo = new Date(now); fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5); fiveDaysAgo.setHours(16, 40, 0, 0);
+
+  return [
+    {
+      id: "NT-2026-0041",
+      prospect: "Camille Roux",
+      email: "c.roux@acme.fr",
+      tel: "06 12 34 56 78",
+      depart: "Paris",
+      destination: "Lyon",
+      passagers: 45,
+      tripDate: "15 juillet 2026",
+      vehicule: "Autocar grand tourisme",
+      statut: "Nouveau",
+      tarifMin: 1830,
+      tarifMax: 2416,
+      createdAt: today,
+      messages: [
+        { role: "user", text: "Bonjour, je cherche un autocar pour 45 personnes, départ Paris le 15 juillet direction Lyon pour un séminaire d'entreprise.", sentAt: today },
+        { role: "agent", text: "Bonjour ! J'ai bien noté votre demande — laissez-moi quelques secondes pour analyser votre trajet.", sentAt: new Date(today.getTime() + 30 * 1000) },
+        { role: "agent", text: "Parfait ! Paris → Lyon, 45 passagers, 15 juillet. Tarif indicatif : 1 830 € – 2 416 € TTC, chauffeur et carburant inclus. Souhaitez-vous un devis par email ?", sentAt: new Date(today.getTime() + 70 * 1000) },
+        { role: "user", text: "Oui, envoyez-le à c.roux@acme.fr. Est-ce que vous avez des horaires avec retour le soir ?", sentAt: new Date(today.getTime() + 130 * 1000) },
+      ],
+    },
+    {
+      id: "NT-2026-0040",
+      prospect: "Thomas Mercier",
+      email: "t.mercier@rh-corp.fr",
+      tel: "06 22 33 44 55",
+      depart: "Bordeaux",
+      destination: "Paris CDG",
+      passagers: 8,
+      tripDate: "2 juillet 2026",
+      vehicule: "Minibus & van",
+      statut: "En cours",
+      tarifMin: 980,
+      tarifMax: 1280,
+      createdAt: yesterday,
+      messages: [
+        { role: "user", text: "Navette aéroport pour notre équipe RH, 8 personnes, départ Bordeaux vers Paris CDG.", sentAt: yesterday },
+        { role: "agent", text: "Bonjour ! Je note votre besoin de navette. Avez-vous une date et une heure de vol précises ?", sentAt: new Date(yesterday.getTime() + 60 * 1000) },
+      ],
+    },
+    {
+      id: "NT-2026-0039",
+      prospect: "Sophie Laurent",
+      email: "s.laurent@ecole-jules.fr",
+      tel: "06 33 44 55 66",
+      depart: "Lyon",
+      destination: "Grenoble",
+      passagers: 38,
+      tripDate: "18 juin 2026",
+      vehicule: "Autocar grand tourisme",
+      statut: "Devis envoyé",
+      tarifMin: 1420,
+      tarifMax: 1890,
+      createdAt: threeDaysAgo,
+      messages: [
+        { role: "user", text: "Sortie scolaire terminée, avis très positif ! Merci pour le service.", sentAt: threeDaysAgo },
+      ],
+    },
+    {
+      id: "NT-2026-0038",
+      prospect: "Marc Duval",
+      email: "marc.duval@vignerons-reims.fr",
+      tel: "06 44 55 66 77",
+      depart: "Paris",
+      destination: "Reims",
+      passagers: 28,
+      tripDate: "30 juin 2026",
+      vehicule: "Autocar grand tourisme",
+      statut: "En attente",
+      tarifMin: 1100,
+      tarifMax: 1450,
+      createdAt: fiveDaysAgo,
+      messages: [
+        { role: "user", text: "Événement viticole, aller-retour dans la journée, êtes-vous disponibles ?", sentAt: fiveDaysAgo },
+      ],
+    },
+  ];
+}
 
 export default function Home() {
   const [screen, setScreen] = useState<Screen>("landing");
+  const [demandes, setDemandes] = useState<Demande[]>(buildInitialDemandes);
+  const [agentNotifications, setAgentNotifications] = useState(0);
+  const demandeCounter = useRef(42);
+  const now = useNow();
 
-  if (screen === "landing") return <Landing setScreen={setScreen} />;
-  if (screen === "devis") return <Devis setScreen={setScreen} />;
+  const goScreen = (target: Screen) => {
+    if (target === "demandes") setAgentNotifications(0);
+    setScreen(target);
+  };
+
+  const addDemande = (info: TripInfo) => {
+    const createdAt = new Date();
+    const id = `NT-2026-${String(demandeCounter.current++).padStart(4, "0")}`;
+    setDemandes(list => [
+      {
+        id,
+        prospect: "Nouveau prospect",
+        email: "",
+        tel: "",
+        depart: info.depart || "—",
+        destination: info.destination || "—",
+        passagers: info.passagers ? parseInt(info.passagers, 10) : 0,
+        tripDate: info.date || "Date à confirmer",
+        vehicule: "À déterminer",
+        statut: "Nouveau",
+        tarifMin: 0,
+        tarifMax: 0,
+        createdAt,
+        messages: [],
+      },
+      ...list,
+    ]);
+    setAgentNotifications(n => n + 1);
+    return id;
+  };
+
+  const appendMessage = (id: string, message: ChatMessage) => {
+    setDemandes(list => list.map(d => (d.id === id ? { ...d, messages: [...d.messages, message] } : d)));
+  };
+
+  const updateDemandeTarif = (id: string, min: number, max: number) => {
+    setDemandes(list => list.map(d => (d.id === id ? { ...d, tarifMin: min, tarifMax: max } : d)));
+  };
+
+  if (screen === "landing") {
+    return (
+      <Landing
+        setScreen={goScreen}
+        addDemande={addDemande}
+        appendMessage={appendMessage}
+        updateDemandeTarif={updateDemandeTarif}
+      />
+    );
+  }
 
   return (
     <div className="operator-layout">
-      <Sidebar screen={screen} setScreen={setScreen} />
+      <Sidebar screen={screen} setScreen={goScreen} demandesCount={demandes.length} />
       <main className="operator-main">
-        <Topbar screen={screen} />
-        {screen === "dashboard" && <Dashboard setScreen={setScreen} />}
-        {screen === "demandes" && <Demandes setScreen={setScreen} />}
-        {screen === "agent" && <AgentIA />}
+        <Topbar screen={screen} notifications={agentNotifications} now={now} />
+        {screen === "dashboard" && <Dashboard setScreen={goScreen} demandes={demandes} now={now} />}
+        {screen === "demandes" && <Demandes demandes={demandes} now={now} />}
       </main>
     </div>
   );
@@ -60,12 +238,23 @@ export default function Home() {
 
 /* ─── LANDING ─────────────────────────────────────────────────────────────── */
 
-function Landing({ setScreen }: { setScreen: (s: Screen) => void }) {
-  const [step, setStep] = useState(0);
-  const [chatOpen, setChatOpen] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([]);
+function Landing({
+  setScreen,
+  addDemande,
+  appendMessage,
+  updateDemandeTarif,
+}: {
+  setScreen: (s: Screen) => void;
+  addDemande: (info: TripInfo) => string;
+  appendMessage: (id: string, message: ChatMessage) => void;
+  updateDemandeTarif: (id: string, min: number, max: number) => void;
+}) {
+  const [chatActive, setChatActive] = useState(false);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
+  const [heroQuery, setHeroQuery] = useState("");
   const [agentTyping, setAgentTyping] = useState(false);
+<<<<<<< HEAD
   const [form, setForm] = useState<FormData>(INITIAL_FORM);
   const formRef = useRef<HTMLDivElement>(null);
   const sessionId = useRef<string>(
@@ -84,6 +273,13 @@ function Landing({ setScreen }: { setScreen: (s: Screen) => void }) {
 
   const set = <K extends keyof FormData>(k: K, v: FormData[K]) =>
     setForm(f => ({ ...f, [k]: v }));
+=======
+  const [agentStage, setAgentStage] = useState(0);
+  const formRef = useRef<HTMLDivElement>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activeDemandeId = useRef<string | null>(null);
+  const tripInfo = useRef<TripInfo>({});
+>>>>>>> 9366d65dd3902e452f1ba41e8f3c69abbd166368
 
   const scrollToForm = () => {
     if (formRef.current) {
@@ -92,11 +288,13 @@ function Landing({ setScreen }: { setScreen: (s: Screen) => void }) {
     }
   };
 
-  const nextStep = () => {
-    if (step >= 3) { openChat(); return; }
-    setStep(s => s + 1);
+  const addMsg = (role: "agent" | "user", text: string) => {
+    const msg: ChatMessage = { role, text, sentAt: new Date() };
+    setMessages(m => [...m, msg]);
+    if (activeDemandeId.current) appendMessage(activeDemandeId.current, msg);
   };
 
+<<<<<<< HEAD
   const ERROR_MSG =
     "Désolé, je n'arrive pas à joindre l'agent pour le moment. Réessayez dans un instant.";
 
@@ -139,19 +337,99 @@ function Landing({ setScreen }: { setScreen: (s: Screen) => void }) {
     const reply = await callAgent(text);
     setMessages(m => [...m, { role: "agent", text: reply ?? ERROR_MSG }]);
     setAgentTyping(false);
+=======
+  const priceMsg = () => {
+    const pax = parseInt(tripInfo.current.passagers ?? "", 10) || 30;
+    const low = 1200 + pax * 14;
+    const high = Math.round(low * 1.32);
+    const fmt = (n: number) => n.toLocaleString("fr-FR");
+    if (activeDemandeId.current) updateDemandeTarif(activeDemandeId.current, low, high);
+    return `D'après les éléments fournis, le tarif indicatif se situe entre ${fmt(low)} € et ${fmt(high)} € TTC, chauffeur et carburant inclus. Tarif indicatif — la distance exacte sera confirmée avant l'envoi du devis définitif.`;
+  };
+
+  const pushAgent = (text: string) => {
+    setAgentTyping(true);
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      addMsg("agent", text);
+      setAgentTyping(false);
+    }, 1000);
+  };
+
+  const openChat = () => {
+    const query = heroQuery.trim();
+    setChatActive(true);
+    setAgentStage(0);
+    setAgentTyping(true);
+    if (timer.current) clearTimeout(timer.current);
+
+    const parsed = parseTripQuery(query);
+    tripInfo.current = parsed;
+    activeDemandeId.current = addDemande(parsed);
+
+    if (query) {
+      addMsg("user", query);
+      setHeroQuery("");
+    } else {
+      setMessages([]);
+    }
+
+    const trip = parsed.depart && parsed.destination ? `${parsed.depart} → ${parsed.destination}` : "votre trajet";
+    const pax = parsed.passagers ? `${parsed.passagers} passagers` : "votre groupe";
+    timer.current = setTimeout(() => {
+      addMsg("agent", `Bonjour, je suis l'agent Neotravel. J'ai bien noté votre trajet ${trip} pour ${pax}. Pour affiner le devis, souhaitez-vous un aller simple ou un aller-retour ?`);
+      setAgentTyping(false);
+    }, 850);
+  };
+
+  const respond = (userText: string) => {
+    const t = userText.toLowerCase();
+    let reply: string;
+    if (/(prix|tarif|co[uû]t|combien|budget|devis)/.test(t)) {
+      reply = priceMsg();
+    } else if (/(conseiller|humain|appel|rappel|t[ée]l[ée]phone|parler)/.test(t)) {
+      reply = "Bien sûr. Un chargé d'affaires Neotravel peut vous rappeler sous 24 h ouvrées.";
+    } else if (agentStage === 0) {
+      reply = `Parfait. Pour ${tripInfo.current.depart || "votre départ"} → ${tripInfo.current.destination || "votre destination"}, j'estime la distance et le temps de conduite. Avez-vous une date précise, ou êtes-vous flexible ?`;
+    } else if (agentStage === 1) {
+      reply = priceMsg();
+    } else if (agentStage === 2) {
+      reply = "Très bien. Je peux vous envoyer ce devis par email et programmer un rappel. Souhaitez-vous que je le fasse ?";
+    } else {
+      reply = "C'est noté, votre demande est transmise à notre équipe. Avez-vous une exigence particulière à ajouter ?";
+    }
+    setAgentStage(s => s + 1);
+    pushAgent(reply);
+>>>>>>> 9366d65dd3902e452f1ba41e8f3c69abbd166368
   };
 
   const sendChat = () => {
     const text = chatInput.trim();
     if (!text) return;
-    setMessages(m => [...m, { role: "user", text }]);
+    addMsg("user", text);
     setChatInput("");
     sendToAgent(text);
   };
 
+  const chatTags = [
+    "Paris → Lyon, 45 pers.",
+    "Devis pour un séminaire",
+    "Navette aéroport",
+    "Voyage scolaire",
+  ];
+
+  const insertTag = (tag: string) => {
+    setChatInput(prev => prev ? `${prev} ${tag}` : tag);
+  };
+
   const onQuick = (text: string) => {
+<<<<<<< HEAD
     setMessages(m => [...m, { role: "user", text }]);
     sendToAgent(text);
+=======
+    addMsg("user", text);
+    respond(text);
+>>>>>>> 9366d65dd3902e452f1ba41e8f3c69abbd166368
   };
 
   return (
@@ -170,146 +448,144 @@ function Landing({ setScreen }: { setScreen: (s: Screen) => void }) {
             <a href="#">Blog</a>
           </nav>
           <div className="nt-header-actions">
-            <button className="nt-cta-header" onClick={scrollToForm}>Devis gratuit</button>
+            <button className="nt-btn-outline nt-header-agent" onClick={() => setScreen("dashboard")}>Espace agent</button>
+            <a className="nt-phone-btn" href="tel:0980400484">09 80 40 04 84</a>
           </div>
         </div>
       </header>
 
-      {/* HERO */}
-      <section className="nt-hero">
+      <section className="nt-hero nt-hero-home">
         <div className="nt-hero-photo" />
         <div className="nt-hero-overlay-1" />
         <div className="nt-hero-overlay-2" />
-        <div className="nt-hero-glow" />
-        <div className="nt-hero-inner">
-
-          {/* Text */}
+        <div className="nt-hero-inner hero-home-inner">
           <div className="nt-hero-text">
-            <h1 className="nt-h1">
-              Location d'autocar,<br />minibus<br />et bus privé
+            <div className="nt-eyebrow nt-eyebrow-home">
+              <span className="nt-eyebrow-dot" />
+              <span>TRANSPORT PREMIUM AVEC CHAUFFEUR</span>
+            </div>
+            <h1 className="nt-h1 nt-h1-home">
+              Organisez votre transport de groupe<br />en toute simplicité
             </h1>
-            <p className="nt-hero-desc">
-              Neotravel vous accompagne dans vos déplacements de groupe grâce à un réseau de partenaires autocaristes qualifiés et un assistant IA capable de générer un devis en quelques minutes.
-            </p>
-            <div className="nt-hero-ctas">
-              <button className="nt-btn-lime" onClick={scrollToForm}>
-                Demander un devis
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M5 12h14M13 6l6 6-6 6" />
-                </svg>
-              </button>
-              <button className="nt-btn-outline" onClick={() => setScreen("dashboard")}>
-                Espace opérateur
-              </button>
-            </div>
-          </div>
-
-          {/* Form card */}
-          <div className="nt-form-wrap" ref={formRef}>
-            <div className="nt-form-card">
-              <h3 className="nt-form-title">Votre devis en quelques minutes :</h3>
-              <div className="nt-segs">
-                {[0, 1, 2, 3].map(i => (
-                  <div key={i} className={`nt-seg${step > i ? " on" : ""}`} />
-                ))}
-              </div>
-
-              <div className="nt-form-body">
-                {step === 0 && (
-                  <div className="nt-fields">
-                    <p className="nt-field-group">Votre déplacement</p>
-                    <NtField label="Ville de départ">
-                      <input placeholder="Ex : Paris, Bruxelles, Genève…" value={form.depart} onChange={e => set("depart", e.target.value)} />
-                    </NtField>
-                    <NtField label="Destination">
-                      <input placeholder="Ex : Lyon, Nice, Marseille…" value={form.destination} onChange={e => set("destination", e.target.value)} />
-                    </NtField>
-                    <NtField label="Nombre de passagers">
-                      <input type="number" placeholder="Ex : 45 personnes" value={form.passagers} onChange={e => set("passagers", e.target.value)} />
-                    </NtField>
+            {!chatActive ? (
+              <p className="nt-hero-desc nt-hero-desc-home">
+                Décrivez votre besoin, échangez avec notre assistant IA et recevez un devis personnalisé en quelques minutes grâce à notre réseau d'autocaristes partenaires partout en France.
+              </p>
+            ) : (
+              <div className="nt-chat-panel">
+                <div className="nt-chat-header">
+                  <div>
+                    <strong>Conversation avec l'agent Neotravel</strong>
+                    <p>Votre assistant de devis est prêt à répondre à vos questions.</p>
                   </div>
-                )}
-                {step === 1 && (
-                  <div className="nt-fields">
-                    <p className="nt-field-group">Dates &amp; horaires</p>
-                    <label className="nt-switch-row">
-                      <span>Aller-retour</span>
-                      <button
-                        type="button"
-                        className={`nt-toggle${form.allerRetour ? " on" : ""}`}
-                        onClick={() => set("allerRetour", !form.allerRetour)}
-                      >
-                        <span />
-                      </button>
-                    </label>
-                    <NtField label="Date de départ">
-                      <input type="date" value={form.dateAller} onChange={e => set("dateAller", e.target.value)} />
-                    </NtField>
-                    {form.allerRetour && (
-                      <NtField label="Date de retour">
-                        <input type="date" value={form.dateRetour} onChange={e => set("dateRetour", e.target.value)} />
-                      </NtField>
-                    )}
-                    <NtField label="Heure de prise en charge">
-                      <input type="time" value={form.heure} onChange={e => set("heure", e.target.value)} />
-                    </NtField>
-                  </div>
-                )}
-                {step === 2 && (
-                  <div className="nt-fields">
-                    <p className="nt-field-group">Véhicule &amp; options</p>
-                    <NtField label="Type de véhicule">
-                      <select value={form.vehicule} onChange={e => set("vehicule", e.target.value)}>
-                        <option value="">Choisir un véhicule…</option>
-                        <option>Autocar grand tourisme (50-63 pl.)</option>
-                        <option>Minibus (8-22 pl.)</option>
-                        <option>Bus privé / VIP</option>
-                        <option>Van avec chauffeur (jusqu&apos;à 8 pl.)</option>
-                      </select>
-                    </NtField>
-                    <div className="nt-checks">
-                      {([
-                        ["bagages", "Bagages volumineux (soute)"],
-                        ["assurance", "Assurance annulation"],
-                        ["pmr", "Accès PMR / véhicule adapté"],
-                      ] as const).map(([k, label]) => (
-                        <label key={k} className="nt-check-row">
-                          <input type="checkbox" checked={form[k]} onChange={e => set(k, e.target.checked)} />
-                          <span>{label}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {step === 3 && (
-                  <div className="nt-fields">
-                    <p className="nt-field-group">Vos coordonnées</p>
-                    <NtField label="Nom complet">
-                      <input placeholder="Ex : Camille Roux" value={form.nom} onChange={e => set("nom", e.target.value)} />
-                    </NtField>
-                    <NtField label="Email">
-                      <input type="email" placeholder="vous@entreprise.fr" value={form.email} onChange={e => set("email", e.target.value)} />
-                    </NtField>
-                    <NtField label="Téléphone">
-                      <input type="tel" placeholder="06 12 34 56 78" value={form.tel} onChange={e => set("tel", e.target.value)} />
-                    </NtField>
-                  </div>
-                )}
-              </div>
-
-              <div className="nt-form-nav">
-                {step > 0 && (
-                  <button type="button" className="nt-back-btn" onClick={() => setStep(s => Math.max(0, s - 1))}>
-                    Retour
+                  <button type="button" className="nt-chat-close" onClick={() => setChatActive(false)}>
+                    Fermer
                   </button>
-                )}
-                <button type="button" className="nt-next-btn" onClick={nextStep}>
-                  {step < 3 ? "Continuer" : "Continuer avec l'agent IA"}
-                </button>
+                </div>
+                <div className="nt-chat-messages">
+                  {messages.map((m, i) => (
+                    <div key={i} className={`nt-chat-message ${m.role}`}>
+                      <p>{m.text}</p>
+                      <span className="nt-chat-timestamp">{formatTime(m.sentAt)}</span>
+                    </div>
+                  ))}
+                  {agentTyping && (
+                    <div className="nt-chat-message agent">
+                      <div className="nt-typing">
+                        <span />
+                        <span />
+                        <span />
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="nt-chat-quicks">
+                  {[
+                    "Aller-retour",
+                    "Quel est le tarif ?",
+                    "Je suis flexible sur les dates",
+                    "Parler à un conseiller",
+                  ].map(q => (
+                    <button key={q} type="button" className="nt-quick" onClick={() => onQuick(q)}>{q}</button>
+                  ))}
+                </div>
+                <div className="nt-chat-tags">
+                  {chatTags.map(tag => (
+                    <button key={tag} type="button" className="nt-chat-tag" onClick={() => insertTag(tag)}>{tag}</button>
+                  ))}
+                </div>
+                <div className="nt-chat-input">
+                  <div className="nt-chat-icons">
+                    <button type="button" className="nt-chat-icon-btn" aria-label="Joindre un fichier">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21.44 11.05 12.95 19.5a5.5 5.5 0 0 1-7.78 0 5.5 5.5 0 0 1 0-7.78l7.07-7.07a3.5 3.5 0 1 1 4.95 4.95L11.5 18.5" />
+                        <path d="M18 6.5 19.5 5" />
+                      </svg>
+                    </button>
+                    <button type="button" className="nt-chat-icon-btn" aria-label="Activer la voix">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 1.5a3.5 3.5 0 0 1 3.5 3.5v5a3.5 3.5 0 0 1-7 0v-5A3.5 3.5 0 0 1 12 1.5Z" />
+                        <path d="M8.5 12a3.5 3.5 0 0 0 7 0" />
+                        <path d="M12 19.5v3" />
+                        <path d="M8 22.5h8" />
+                      </svg>
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    value={chatInput}
+                    onChange={e => setChatInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
+                    placeholder="Décrivez votre trajet... ex : Paris → Lyon, 45 personnes, 15 juillet"
+                  />
+                  <button className="nt-send-btn" onClick={sendChat} aria-label="Envoyer">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0E1C2B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" />
+                    </svg>
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
+
+            {!chatActive && (
+              <div className="nt-search-card">
+                <div className="nt-search-input">
+                  <input
+                    value={heroQuery}
+                    onChange={e => setHeroQuery(e.target.value)}
+                    placeholder="Décrivez votre trajet... ex : Paris → Lyon, 45 personnes, 15 juillet"
+                  />
+                  <button className="nt-search-attach" aria-label="Joindre un fichier">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21.44 11.05 12.95 19.5a5.5 5.5 0 0 1-7.78 0 5.5 5.5 0 0 1 0-7.78l7.07-7.07a3.5 3.5 0 1 1 4.95 4.95L11.5 18.5" />
+                      <path d="M18 6.5 19.5 5" />
+                    </svg>
+                  </button>
+                  <button className="nt-search-voice" aria-label="Activer la voix">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 1.5a3.5 3.5 0 0 1 3.5 3.5v5a3.5 3.5 0 0 1-7 0v-5A3.5 3.5 0 0 1 12 1.5Z" />
+                      <path d="M8.5 12a3.5 3.5 0 0 0 7 0" />
+                      <path d="M12 19.5v3" />
+                      <path d="M8 22.5h8" />
+                    </svg>
+                  </button>
+                  <button className="nt-search-go" onClick={openChat} aria-label="Lancer l'agent IA">
+                    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#0E1C2B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M5 12h14" />
+                      <path d="m13 6 6 6-6 6" />
+                    </svg>
+                  </button>
+                </div>
+                <div className="nt-search-tags">
+                  {['Paris → Lyon, 45 pers.', 'Devis pour un séminaire', 'Navette aéroport', 'Voyage scolaire'].map(tag => (
+                    <button key={tag} type="button" onClick={() => setHeroQuery(tag)}>{tag}</button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
+      </section>
 
         {/* Trust strip */}
         <div className="nt-trust">
@@ -329,7 +605,6 @@ function Landing({ setScreen }: { setScreen: (s: Screen) => void }) {
             ))}
           </div>
         </div>
-      </section>
 
       {/* SERVICES */}
       <section id="services" className="nt-section nt-section-light">
@@ -453,7 +728,6 @@ function Landing({ setScreen }: { setScreen: (s: Screen) => void }) {
             <p className="nt-cta-band-desc">Obtenez un devis indicatif en quelques minutes, sans engagement.</p>
           </div>
           <div className="nt-cta-band-actions">
-            <button className="nt-btn-dark" onClick={scrollToForm}>Demander un devis</button>
             <button className="nt-btn-dark-outline" onClick={openChat}>Parler à l'agent IA</button>
           </div>
         </div>
@@ -492,6 +766,7 @@ function Landing({ setScreen }: { setScreen: (s: Screen) => void }) {
           </div>
         </div>
       </footer>
+<<<<<<< HEAD
 
       {/* CHAT DRAWER */}
       {chatOpen && (
@@ -564,18 +839,9 @@ function Landing({ setScreen }: { setScreen: (s: Screen) => void }) {
           </div>
         </>
       )}
+=======
+>>>>>>> 9366d65dd3902e452f1ba41e8f3c69abbd166368
     </div>
-  );
-}
-
-/* ─── FORM FIELD WRAPPER ──────────────────────────────────────────────────── */
-
-function NtField({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="nt-field">
-      <span>{label}</span>
-      {children}
-    </label>
   );
 }
 
@@ -607,282 +873,384 @@ const IcoMinibus = () => <S><path d="M3 9h18v7a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9zM
 const IcoEvent = () => <S><path d="M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" /></S>;
 const IcoPlane = () => <S><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z" /></S>;
 
-/* ─── DEVIS ───────────────────────────────────────────────────────────────── */
+/* ─── OPERATOR ICONS ──────────────────────────────────────────────────────── */
 
-function Devis({ setScreen }: { setScreen: (screen: Screen) => void }) {
+function OpIcon({ children, size = 18 }: { children: React.ReactNode; size?: number }) {
   return (
-    <main className="devis-page">
-      <section className="devis-card">
-        <header className="devis-header">
-          <div>
-            <p>Devis transport de groupe</p>
-            <h1>Paris → Lyon</h1>
-            <span>DEV-2048 · Valable 15 jours</span>
-          </div>
-          <div className="devis-status">
-            <span>Calculé automatiquement</span>
-            <small>15 juillet 2026</small>
-          </div>
-        </header>
-        <div className="client-summary">
-          <div className="client-avatar">JD</div>
-          <div>
-            <strong>Jean Dupont</strong>
-            <span>jean.dupont@email.fr</span>
-          </div>
-        </div>
-        <div className="trip-tags">
-          <span>Paris → Lyon</span><span>15 passagers</span>
-          <span>15 juillet 2026</span><span>Urgent</span><span>Péages inclus</span>
-        </div>
-        <div className="calculation">
-          <CalcLine label="472 km × 2,12 €/km" value="1 000 €" />
-          <CalcLine label="Coeff. saisonnalité — Juillet (+10 %)" value="+100 €" lime />
-          <CalcLine label="Coeff. urgence — DD_URGENT (+5 %)" value="+55 €" lime />
-          <CalcLine label="Option — Péages inclus" value="+80 €" lime />
-          <CalcLine label="Marge commerciale (+15 %)" value="+173 €" lime />
-          <CalcLine label="Montant HT" value="1 408 €" bold />
-          <CalcLine label="TVA 10 %" value="+141 €" muted />
-        </div>
-        <div className="total">
-          <div><span>Montant TTC</span><small>TVA 10 % incluse</small></div>
-          <strong>1 549 €</strong>
-        </div>
-        <footer className="devis-footer">
-          <button>Télécharger le PDF</button>
-          <button className="ghost" onClick={() => setScreen("landing")}>Modifier ma demande</button>
-          <button className="ghost" onClick={() => setScreen("dashboard")}>Espace opérateur</button>
-        </footer>
-      </section>
-    </main>
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      {children}
+    </svg>
   );
 }
 
+const IcoGrid = () => <OpIcon><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></OpIcon>;
+const IcoDocList = () => <OpIcon><path d="M7 3h7l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" /><path d="M9 12h6M9 16h6M9 8h3" /></OpIcon>;
+const IcoHome = () => <OpIcon><path d="M4 11.5 12 4l8 7.5" /><path d="M6 10v9a1 1 0 0 0 1 1h3v-6h4v6h3a1 1 0 0 0 1-1v-9" /></OpIcon>;
+const IcoBell = () => <OpIcon size={20}><path d="M6 9a6 6 0 1 1 12 0c0 3 1 5 1.5 6H4.5C5 14 6 12 6 9Z" /><path d="M10 19a2 2 0 0 0 4 0" /></OpIcon>;
+const IcoPlus = () => <OpIcon size={16}><path d="M12 5v14M5 12h14" /></OpIcon>;
+const IcoLogout = () => <OpIcon><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="m16 17 5-5-5-5" /><path d="M21 12H9" /></OpIcon>;
+const IcoRefresh = () => <OpIcon size={16}><path d="M3 12a9 9 0 0 1 15-6.7L21 8" /><path d="M21 4v4h-4" /><path d="M21 12a9 9 0 0 1-15 6.7L3 16" /><path d="M3 20v-4h4" /></OpIcon>;
+const IcoFile = () => <OpIcon size={16}><path d="M7 3h7l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" /><path d="M9 13h6M9 17h4" /></OpIcon>;
+const IcoExport = () => <OpIcon size={16}><path d="M12 3v12" /><path d="m7 8 5-5 5 5" /><path d="M5 21h14" /></OpIcon>;
+const IcoChatBubble = () => <OpIcon><path d="M21 11.5a8.5 8.5 0 1 1-4.07 7.13L3 20l1.4-3.93A8.5 8.5 0 0 1 21 11.5Z" /></OpIcon>;
+const IcoSend2 = () => <OpIcon><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></OpIcon>;
+const IcoCheckCircle2 = () => <OpIcon><circle cx="12" cy="12" r="9" /><path d="m8.5 12.5 2.5 2.5 5-5.5" /></OpIcon>;
+const IcoCoins = () => <OpIcon><circle cx="9" cy="9" r="5.5" /><path d="M14.5 9c2.5 0 4.5 2 4.5 4.5S17 18 14.5 18 10 16 10 13.5" /></OpIcon>;
+
 /* ─── OPERATOR ────────────────────────────────────────────────────────────── */
 
-function Sidebar({ screen, setScreen }: { screen: Screen; setScreen: (s: Screen) => void }) {
+function Sidebar({ screen, setScreen, demandesCount }: { screen: Screen; setScreen: (s: Screen) => void; demandesCount: number }) {
   return (
     <aside className="sidebar">
       <div className="sidebar-logo">
         <img src="/assets/Neotravel-logo.svg" alt="Neotravel" />
       </div>
-      <p className="side-title">Principal</p>
-      <button className={screen === "dashboard" ? "active" : ""} onClick={() => setScreen("dashboard")}>Tableau de bord</button>
-      <button className={screen === "demandes" ? "active" : ""} onClick={() => setScreen("demandes")}>Demandes <span>12</span></button>
-      <button onClick={() => setScreen("devis")}>Devis</button>
-      <button className={screen === "agent" ? "active" : ""} onClick={() => setScreen("agent")}>Agent IA</button>
+      <p className="side-title">Espace commercial</p>
+      <nav className="sidebar-nav">
+        <button className={screen === "dashboard" ? "active" : ""} onClick={() => setScreen("dashboard")}>
+          <IcoGrid />
+          <span className="nav-label">Tableau de bord</span>
+        </button>
+        <button className={screen === "demandes" ? "active" : ""} onClick={() => setScreen("demandes")}>
+          <IcoDocList />
+          <span className="nav-label">Demandes</span>
+          <span className="nav-badge">{demandesCount}</span>
+        </button>
+      </nav>
+      <div className="sidebar-divider" />
+      <button type="button" className="sidebar-secondary" onClick={() => setScreen("landing")}>
+        <IcoHome />
+        <span className="nav-label">Voir le site client</span>
+      </button>
       <div className="sidebar-user">
-        <div>SM</div>
+        <div>AG</div>
         <section>
-          <strong>Sophie Martin</strong>
-          <span>Responsable commercial</span>
+          <strong>Agent Commercial</strong>
+          <span>agent@neotravel.fr</span>
         </section>
+        <button type="button" className="sidebar-logout" aria-label="Se déconnecter">
+          <IcoLogout />
+        </button>
       </div>
     </aside>
   );
 }
 
-function Topbar({ screen }: { screen: Screen }) {
-  const titles: Record<string, string> = { dashboard: "", demandes: "Demandes", agent: "Agent IA" };
-  const subs: Record<string, string> = { dashboard: "Bonjour, Sophie — mardi 24 juin 2026", demandes: "Gestion & qualification", agent: "Orchestration & outil log" };
+function Topbar({ screen, notifications, now }: { screen: Screen; notifications: number; now: Date }) {
+  const titles: Record<Screen, string> = {
+    dashboard: "Tableau de bord",
+    demandes: "Demandes",
+    landing: "",
+  };
+  const subs: Partial<Record<Screen, string>> = {
+    dashboard: "Vue d'ensemble de l'activité commerciale",
+    demandes: "Toutes les demandes de devis reçues via le chatbot",
+  };
+  const today = now.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+
   return (
-    <header className="topbar">
-      <div>{titles[screen] && <h1>{titles[screen]}</h1>}<p>{subs[screen]}</p></div>
-      <div className="topbar-actions">
-        <div className="top-user">SM</div>
+    <header className="topbar topbar-operator">
+      <div>
+        {titles[screen] && <h1>{titles[screen]}</h1>}
+        <p>{subs[screen]}</p>
+      </div>
+      <div className="topbar-actions topbar-operator-actions">
+        <button type="button" className="icon-btn topbar-bell" aria-label="Notifications">
+          <IcoBell />
+          {notifications > 0 && <span className="topbar-bell-dot" />}
+        </button>
+        <span className="topbar-date">{today}</span>
+        <button type="button" className="topbar-new-btn"><IcoPlus />Nouvelle demande</button>
       </div>
     </header>
   );
 }
 
-function Dashboard({ setScreen }: { setScreen: (s: Screen) => void }) {
-  return (
-    <section className="operator-content">
-      <div className="kpis">
-        <Kpi title="Leads traités" value="42" sub="sur 58 entrants" note="+8 % vs hier" />
-        <Kpi title="Délai devis" value="2 h 10" sub="demande → devis" note="−18 min vs sem. préc." />
-        <Kpi title="Taux de conversion" value="34 %" sub="post-devis" note="+4 pts / 7 jours" />
-        <Kpi title="Coût par réponse IA" value="0,08 €" sub="par interaction chatbot" note="−0,02 € vs sem. préc." />
-        <Kpi title="Abandon chatbot" value="23 %" sub="des conversations" note="−5 pts amélioration" />
-      </div>
-      <section className="panel" style={{ marginTop: 24 }}>
-        <div className="pipeline-head">
-          <div>
-            <h2 style={{ margin: 0 }}>Pipeline commercial</h2>
-            <p style={{ margin: "4px 0 0", color: "var(--muted)", fontSize: 13 }}>Semaine en cours</p>
-          </div>
-          <div className="pipeline-conv-total">Conversion globale <strong>12 %</strong></div>
-        </div>
-        <div className="pipeline-v2">
-          {([
-            { label: "Captation",  value: 58, pct: 100, color: "#334155" },
-            { label: "Qualifiées", value: 34, pct: 59,  color: "#1e40af" },
-            { label: "Devis",      value: 21, pct: 36,  color: "#0369a1" },
-            { label: "Relance",    value: 9,  pct: 16,  color: "#d97706" },
-            { label: "Signées",    value: 7,  pct: 12,  color: "#16a34a" },
-          ] as { label: string; value: number; pct: number; color: string }[]).map((s, i, arr) => (
-            <div key={s.label} className="pipe-v2">
-              <div className="pipe-v2-bar-wrap">
-                <div className="pipe-v2-bar" style={{ height: `${s.pct}%`, background: s.color }} />
-              </div>
-              <div className="pipe-v2-value" style={{ color: s.color }}>{s.value}</div>
-              <div className="pipe-v2-label">{s.label}</div>
-              {i < arr.length - 1 && (
-                <div className="pipe-v2-conv">{Math.round((arr[i + 1].value / s.value) * 100)} %</div>
-              )}
-            </div>
-          ))}
-        </div>
-      </section>
-      <section className="panel" style={{ marginTop: 20 }}>
-        <div className="panel-head">
-          <div><h2>Demandes récentes</h2><p>Dernières 24 h</p></div>
-          <button onClick={() => setScreen("demandes")}>Voir toutes →</button>
-        </div>
-        <DemandesTable small />
-      </section>
-    </section>
-  );
-}
+function Dashboard({ setScreen, demandes, now }: { setScreen: (s: Screen) => void; demandes: Demande[]; now: Date }) {
+  const devisEnvoyesCount = demandes.filter(d => d.statut === "Devis envoyé").length;
+  const convRate = demandes.length ? Math.round((devisEnvoyesCount / demandes.length) * 100) : 0;
+  const priced = demandes.filter(d => d.tarifMax > 0);
+  const tarifMoyen = priced.length
+    ? Math.round(priced.reduce((sum, d) => sum + (d.tarifMin + d.tarifMax) / 2, 0) / priced.length)
+    : 0;
+  const tarifMin = priced.length ? Math.min(...priced.map(d => d.tarifMin)) : 0;
+  const tarifMax = priced.length ? Math.max(...priced.map(d => d.tarifMax)) : 0;
 
-type TabKey = "all" | "Nouveau" | "Qualifié" | "Devis envoyé" | "En relance";
-
-function Demandes({ setScreen }: { setScreen: (s: Screen) => void }) {
-  const [activeTab, setActiveTab] = useState<TabKey>("all");
-
-  const tabs: { key: TabKey; label: string; count: number }[] = [
-    { key: "all",          label: "Toutes",       count: 58 },
-    { key: "Nouveau",      label: "Nouvelles",    count: 12 },
-    { key: "Qualifié",     label: "Qualifiées",   count: 18 },
-    { key: "Devis envoyé", label: "Devis envoyés", count: 15 },
-    { key: "En relance",   label: "En relance",   count: 9  },
+  const stats = [
+    { label: "Demandes reçues", value: String(demandes.length), caption: "+2 vs sem. passée", icon: <IcoChatBubble />, tone: "blue" },
+    { label: "Devis envoyés", value: String(devisEnvoyesCount), caption: "+1 ce mois", icon: <IcoSend2 />, tone: "indigo" },
+    { label: "Taux de conversion", value: `${convRate} %`, caption: "Stable", icon: <IcoCheckCircle2 />, tone: "green" },
+    { label: "Tarif moyen / demande", value: `${tarifMoyen.toLocaleString("fr-FR")} €`, caption: "+14 % vs mois dernier", icon: <IcoCoins />, tone: "orange" },
   ];
 
+  const activities = [...demandes].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, 4);
+
+  const pipelineColors: Record<DemandeStatus, string> = {
+    "Nouveau": "#dbeafe",
+    "En cours": "#bfdbfe",
+    "Devis envoyé": "#ddf4ff",
+    "En attente": "#fef3c7",
+  };
+  const pipeline = (["Nouveau", "En cours", "Devis envoyé", "En attente"] as DemandeStatus[]).map(label => ({
+    label,
+    value: demandes.filter(d => d.statut === label).length,
+    color: pipelineColors[label],
+  }));
+
+  const followups = demandes.filter(d => d.statut === "Nouveau" || d.statut === "En attente").slice(0, 2);
+
   return (
-    <section className="operator-content demandes-page">
-      <div className="tabs">
-        {tabs.map(t => (
-          <button
-            key={t.key}
-            className={activeTab === t.key ? "active" : ""}
-            onClick={() => setActiveTab(t.key)}
-          >
-            {t.label} <span>{t.count}</span>
-          </button>
+    <section className="operator-content dashboard-page">
+      <div className="dashboard-summary-cards">
+        {stats.map(stat => (
+          <div key={stat.label} className="dashboard-summary-card">
+            <div className={`dashboard-summary-icon ${stat.tone}`}>{stat.icon}</div>
+            <div>
+              <span className="dashboard-summary-label">{stat.label}</span>
+              <strong>{stat.value}</strong>
+              <p>{stat.caption}</p>
+            </div>
+          </div>
         ))}
       </div>
-      <section className="panel">
-        <DemandesTable filter={activeTab === "all" ? undefined : activeTab} />
-      </section>
-      <button className="floating-action" onClick={() => setScreen("agent")}>Qualifier avec l'agent IA</button>
-    </section>
-  );
-}
 
-function AgentIA() {
-  const agentConvo: Message[] = [
-    { role: "agent", text: "Bonjour ! Je suis l'agent Neotravel. Décrivez votre besoin de transport : départ, destination, date et nombre de passagers." },
-    { role: "user", text: "Paris → Lyon, 15 passagers, le 15 juillet 2026" },
-    { role: "agent", text: "Parfait. Paris → Lyon pour 15 personnes le 15 juillet. Est-ce urgent ?" },
-    { role: "user", text: "Oui, assez urgent." },
-    { role: "agent", text: "Très bien. Souhaitez-vous ajouter des options : guide, nuit chauffeur ou péages inclus ?" },
-    { role: "user", text: "Péages inclus." },
-  ];
-  return (
-    <section className="operator-content">
-      <div className="principle">
-        <strong>L'IA décide — les outils exécutent.</strong>
-        <span>L'agent orchestre la conversation et appelle des outils déterministes. Il ne fait jamais d'arithmétique lui-même.</span>
-      </div>
-      <div className="agent-layout">
-        <section className="panel conversation-panel">
-          <h2>Conversation prospect — DEV-2048</h2>
-          <div className="agent-conversation">
-            {agentConvo.map((m, i) => (
-              <div key={i} className={`message-row ${m.role}`}>
-                {m.role === "agent" && <div className="agent-avatar">Nt</div>}
-                <div className={`message-bubble ${m.role}`}>{m.text}</div>
-              </div>
+      <div className="dashboard-grid">
+        <section className="panel activity-panel">
+          <div className="panel-head">
+            <div>
+              <h2>Activité récente</h2>
+              <p>Demandes clients récentes à traiter</p>
+            </div>
+            <button className="table-btn" onClick={() => setScreen("demandes")}>Voir toutes</button>
+          </div>
+          <div className="activity-list">
+            {activities.map(item => (
+              <button key={item.id} type="button" className="activity-item">
+                <div className="activity-avatar">{initials(item.prospect)}</div>
+                <div className="activity-info">
+                  <div className="activity-top">
+                    <strong>{item.prospect}</strong>
+                    <span>{formatDayLabel(item.createdAt, now)}</span>
+                  </div>
+                  <p>{item.id}</p>
+                  <p className="activity-route">{item.depart} → {item.destination}</p>
+                  <p className="activity-preview">{item.messages[0]?.text ?? "Aucun message pour le moment."}</p>
+                </div>
+                <span className={`badge ${statusBadgeClass(item.statut)}`}>{item.statut}</span>
+              </button>
             ))}
           </div>
         </section>
-        <section className="panel tools-panel">
-          <h2>Appels d'outils</h2>
-          <Tool name="calculer_devis()" lines={["trajet: Paris → Lyon", "km: 472", "passagers: 15", "statut: success"]} />
-          <Tool name="generer_pdf()" lines={["ref: DEV-2048", "prospect: Jean Dupont"]} />
-          <Tool name="envoyer_email()" lines={["to: jean.dupont@email.fr", "devis: DEV-2048"]} />
-          <Tool name="crm_update()" lines={["id: D-2048", "statut: Devis envoyé"]} />
-        </section>
+
+        <div className="dashboard-right-panel">
+          <section className="panel pipeline-panel">
+            <div className="panel-head">
+              <div>
+                <h2>Pipeline</h2>
+                <p>Vue d'ensemble des statuts</p>
+              </div>
+            </div>
+            <div className="pipeline-list">
+              {pipeline.map(item => (
+                <div key={item.label} className="pipeline-row">
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                  <div className="pipeline-bar" style={{ background: item.color, width: `${item.value * 16 || 4}px` }} />
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="panel tariff-card">
+            <div className="tariff-card-content">
+              <span>TARIF MOYEN</span>
+              <strong>{tarifMoyen.toLocaleString("fr-FR")} €</strong>
+              <p>par demande · ce mois</p>
+              <div className="tariff-meta">
+                <span>Min {tarifMin.toLocaleString("fr-FR")} €</span>
+                <span>Max {tarifMax.toLocaleString("fr-FR")} €</span>
+                <span>Conv. {convRate} %</span>
+              </div>
+            </div>
+          </section>
+
+          <section className="panel followups-panel">
+            <div className="panel-head">
+              <div>
+                <h2>Relances à faire</h2>
+                <p>Clients à recontacter</p>
+              </div>
+            </div>
+            <div className="followups-list">
+              {followups.map(item => (
+                <button key={item.id} type="button" className="followup-item">
+                  <div>
+                    <strong>{item.prospect}</strong>
+                    <span>{item.depart} → {item.destination} · {formatDayLabel(item.createdAt, now)}</span>
+                  </div>
+                  <button className="table-btn lime">Relancer</button>
+                </button>
+              ))}
+            </div>
+          </section>
+        </div>
       </div>
     </section>
   );
 }
 
-/* ─── SMALL COMPONENTS ────────────────────────────────────────────────────── */
+type TabKey = "all" | DemandeStatus;
 
-function Kpi({ title, value, sub, note }: { title: string; value: string; sub?: string; note: string }) {
-  const color = note.includes('+') ? '#16a34a' : note.startsWith('−') || note.startsWith('-') ? '#dc2626' : '#7c8999';
+function Demandes({ demandes, now }: { demandes: Demande[]; now: Date }) {
+  const [activeTab, setActiveTab] = useState<TabKey>("all");
+  const [search, setSearch] = useState("");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const tabs: { key: TabKey; label: string; count: number }[] = [
+    { key: "all", label: "Toutes", count: demandes.length },
+    { key: "Nouveau", label: "Nouvelles", count: demandes.filter(d => d.statut === "Nouveau").length },
+    { key: "En cours", label: "En cours", count: demandes.filter(d => d.statut === "En cours").length },
+    { key: "Devis envoyé", label: "Devis envoyé", count: demandes.filter(d => d.statut === "Devis envoyé").length },
+    { key: "En attente", label: "En attente", count: demandes.filter(d => d.statut === "En attente").length },
+  ];
+
+  const filtered = demandes.filter(item => {
+    const matchesTab = activeTab === "all" || item.statut === activeTab;
+    const q = search.toLowerCase();
+    const matchesSearch = !q || item.prospect.toLowerCase().includes(q) || `${item.depart} ${item.destination}`.toLowerCase().includes(q);
+    return matchesTab && matchesSearch;
+  });
+
+  const selected = filtered.find(item => item.id === selectedId) ?? filtered[0] ?? demandes[0];
+
+  if (!selected) {
+    return (
+      <section className="operator-content demandes-page">
+        <p>Aucune demande pour le moment.</p>
+      </section>
+    );
+  }
+
   return (
-    <section className="kpi-card">
-      <span className="kpi-title">{title}</span>
-      <strong className="kpi-value">{value}</strong>
-      {sub && <span className="kpi-sub">{sub}</span>}
-      <p className="kpi-note" style={{ color }}>{note}</p>
+    <section className="operator-content demandes-page">
+      <div className="demandes-grid">
+        <aside className="demandes-sidebar">
+          <div className="demandes-header">
+            <div>
+              <h2>Demandes</h2>
+              <p>Toutes les demandes de devis reçues via le chatbot</p>
+            </div>
+            <span className="badge lime">{demandes.length}</span>
+          </div>
+
+          <div className="tabs demandes-tabs">
+            {tabs.map(t => (
+              <button
+                key={t.key}
+                className={activeTab === t.key ? "active" : ""}
+                onClick={() => setActiveTab(t.key)}
+              >
+                {t.label} <span>{t.count}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="demandes-search">
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Rechercher..."
+            />
+          </div>
+
+          <div className="demandes-list">
+            {filtered.map(item => (
+              <button
+                key={item.id}
+                type="button"
+                className={`demande-item ${item.id === selected.id ? "active" : ""}`}
+                onClick={() => setSelectedId(item.id)}
+              >
+                <div className="demande-avatar">{initials(item.prospect)}</div>
+                <div>
+                  <div className="demande-meta">
+                    <strong>{item.prospect}</strong>
+                    <span>{formatDayLabel(item.createdAt, now)}</span>
+                  </div>
+                  <p className="demande-subtitle">{item.depart} → {item.destination}</p>
+                  <p className="demande-preview">{item.messages[0]?.text ?? "Aucun message pour le moment."}</p>
+                </div>
+                <span className={`badge ${statusBadgeClass(item.statut)}`}>{item.statut}</span>
+              </button>
+            ))}
+          </div>
+        </aside>
+
+        <main className="demandes-detail">
+          <section className="detail-panel">
+            <div className="detail-top-row">
+              <div>
+                <span className="detail-ref">{selected.id}</span>
+                <span className={`badge ${statusBadgeClass(selected.statut)}`}>{selected.statut}</span>
+              </div>
+              <div className="detail-actions">
+                <button className="table-btn dark"><IcoRefresh />Relancer</button>
+                <button className="table-btn lime"><IcoFile />Générer le devis</button>
+                <button className="table-btn"><IcoExport />Exporter</button>
+              </div>
+            </div>
+            <h2>{selected.prospect}</h2>
+            <p className="detail-route">{selected.depart} → {selected.destination}</p>
+
+            <div className="detail-grid">
+              <section className="panel client-info-panel">
+                <h3>Informations client</h3>
+                <div className="client-info-row"><span>Email</span><strong>{selected.email || "—"}</strong></div>
+                <div className="client-info-row"><span>Tél.</span><strong>{selected.tel || "—"}</strong></div>
+                <div className="client-info-row"><span>Passagers</span><strong>{selected.passagers ? `${selected.passagers} personnes` : "—"}</strong></div>
+                <div className="client-info-row"><span>Date</span><strong>{selected.tripDate}</strong></div>
+                <div className="client-info-row"><span>Véhicule</span><strong>{selected.vehicule}</strong></div>
+              </section>
+
+              <section className="panel tariff-panel">
+                <span className="detail-label">Tarif indicatif</span>
+                {selected.tarifMax > 0 ? (
+                  <>
+                    <strong>{selected.tarifMin.toLocaleString("fr-FR")} €</strong>
+                    <p>à {selected.tarifMax.toLocaleString("fr-FR")} € TTC</p>
+                  </>
+                ) : (
+                  <strong>À calculer</strong>
+                )}
+                <small>Tarif indicatif — distance à confirmer avant envoi.</small>
+              </section>
+            </div>
+          </section>
+
+          <section className="panel conversation-panel">
+            <div className="panel-head">
+              <div>
+                <h2>Conversation agent IA</h2>
+                <p>{selected.messages.length} messages · {formatDayLabel(selected.createdAt, now)}</p>
+              </div>
+            </div>
+            <div className="agent-conversation demandes-conversation">
+              {selected.messages.map((m, i) => (
+                <div key={i} className={`message-row ${m.role}`}>
+                  {m.role === "agent" && <div className="agent-avatar">Nt</div>}
+                  <div className={`message-bubble ${m.role}`}>
+                    <p>{m.text}</p>
+                    <small className="message-meta">{formatTime(m.sentAt)}</small>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="note-input">
+              <textarea placeholder="Ajouter une note..." rows={3} />
+            </div>
+          </section>
+        </main>
+      </div>
     </section>
-  );
-}
-
-function Pipe({ label, value, lime }: { label: string; value: string; lime?: boolean }) {
-  return (
-    <div className="pipe">
-      <div className={lime ? "lime" : ""} />
-      <strong>{value}</strong>
-      <span>{label}</span>
-    </div>
-  );
-}
-
-function DemandesTable({ small, filter }: { small?: boolean; filter?: string }) {
-  const filtered = filter ? demandes.filter(d => d.statut === filter) : demandes;
-  const list = small ? filtered.slice(0, 4) : filtered;
-  return (
-    <table className="demandes-table">
-      <thead>
-        <tr>
-          <th>Prospect</th><th>Trajet</th><th>Date</th><th>Pass.</th><th>Statut</th>
-          {!small && <th>Actions</th>}
-        </tr>
-      </thead>
-      <tbody>
-        {list.map(item => (
-          <tr key={item.email}>
-            <td><strong>{item.prospect}</strong><span>{item.email}</span></td>
-            <td className="mono">{item.trajet}</td>
-            <td>{item.date}</td>
-            <td>{item.passagers}</td>
-            <td><span className={`badge ${item.badge}`}>{item.statut}</span></td>
-            {!small && <td><button className="table-btn">Ouvrir</button><button className="table-btn lime">Devis</button></td>}
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-}
-
-function CalcLine({ label, value, lime, bold, muted }: { label: string; value: string; lime?: boolean; bold?: boolean; muted?: boolean }) {
-  return (
-    <div className={`calc-line ${bold ? "bold" : ""}`}>
-      <span>{label}</span>
-      <strong className={`${lime ? "lime" : ""} ${muted ? "muted" : ""}`}>{value}</strong>
-    </div>
-  );
-}
-
-function Tool({ name, lines }: { name: string; lines: string[] }) {
-  return (
-    <div className="tool-card">
-      <div><strong>{name}</strong><span>✓ succès</span></div>
-      {lines.map(l => <p key={l}>{l}</p>)}
-    </div>
   );
 }
