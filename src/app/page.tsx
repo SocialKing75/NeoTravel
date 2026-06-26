@@ -437,13 +437,13 @@ function Landing({
             </h1>
             {!chatActive ? (
               <p className="nt-hero-desc nt-hero-desc-home">
-                Décrivez votre besoin, échangez avec notre assistant IA et recevez un devis personnalisé en quelques minutes grâce à notre réseau d'autocaristes partenaires partout en France.
+                Décrivez votre besoin, échangez avec notre assistant IA et recevez un devis personnalisé en quelques minutes grâce à notre réseau d’autocaristes partenaires partout en France.
               </p>
             ) : (
               <div className="nt-chat-panel">
                 <div className="nt-chat-header">
                   <div>
-                    <strong>Conversation avec l'agent Neotravel</strong>
+                    <strong>Conversation avec l’agent Neotravel</strong>
                     <p>Votre assistant de devis est prêt à répondre à vos questions.</p>
                   </div>
                   <button type="button" className="nt-chat-close" onClick={() => setChatActive(false)}>
@@ -485,13 +485,13 @@ function Landing({
                 <div className="nt-chat-input">
                   <div className="nt-chat-icons">
                     <button type="button" className="nt-chat-icon-btn" aria-label="Joindre un fichier">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M21.44 11.05 12.95 19.5a5.5 5.5 0 0 1-7.78 0 5.5 5.5 0 0 1 0-7.78l7.07-7.07a3.5 3.5 0 1 1 4.95 4.95L11.5 18.5" />
                         <path d="M18 6.5 19.5 5" />
                       </svg>
                     </button>
                     <button type="button" className="nt-chat-icon-btn" aria-label="Activer la voix">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M12 1.5a3.5 3.5 0 0 1 3.5 3.5v5a3.5 3.5 0 0 1-7 0v-5A3.5 3.5 0 0 1 12 1.5Z" />
                         <path d="M8.5 12a3.5 3.5 0 0 0 7 0" />
                         <path d="M12 19.5v3" />
@@ -507,7 +507,7 @@ function Landing({
                     placeholder="Décrivez votre trajet... ex : Paris → Lyon, 45 personnes, 15 juillet"
                   />
                   <button className="nt-send-btn" onClick={sendChat} aria-label="Envoyer">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0E1C2B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0E1C2B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" />
                     </svg>
                   </button>
@@ -524,13 +524,13 @@ function Landing({
                     placeholder="Décrivez votre trajet... ex : Paris → Lyon, 45 personnes, 15 juillet"
                   />
                   <button className="nt-search-attach" aria-label="Joindre un fichier">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M21.44 11.05 12.95 19.5a5.5 5.5 0 0 1-7.78 0 5.5 5.5 0 0 1 0-7.78l7.07-7.07a3.5 3.5 0 1 1 4.95 4.95L11.5 18.5" />
                       <path d="M18 6.5 19.5 5" />
                     </svg>
                   </button>
                   <button className="nt-search-voice" aria-label="Activer la voix">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M12 1.5a3.5 3.5 0 0 1 3.5 3.5v5a3.5 3.5 0 0 1-7 0v-5A3.5 3.5 0 0 1 12 1.5Z" />
                       <path d="M8.5 12a3.5 3.5 0 0 0 7 0" />
                       <path d="M12 19.5v3" />
@@ -538,7 +538,7 @@ function Landing({
                     </svg>
                   </button>
                   <button className="nt-search-go" onClick={openChat} aria-label="Lancer l'agent IA">
-                    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#0E1C2B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0E1C2B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M5 12h14" />
                       <path d="m13 6 6 6-6 6" />
                     </svg>
@@ -580,7 +580,7 @@ function Landing({
           <div className="nt-section-head center">
             <div className="nt-label">NOS SERVICES</div>
             <h2 className="nt-h2">Un transport adapté à chaque occasion</h2>
-            <p className="nt-section-desc">Mariages, séminaires, sorties scolaires, transferts aéroport ou événements sportifs — nous mobilisons le véhicule et le chauffeur qu'il vous faut.</p>
+            <p className="nt-section-desc">Mariages, séminaires, sorties scolaires, transferts aéroport ou événements sportifs — nous mobilisons le véhicule et le chauffeur qu’il vous faut.</p>
           </div>
           <div className="nt-4grid">
             {[
@@ -605,7 +605,7 @@ function Landing({
           <div className="nt-section-head center">
             <div className="nt-label">COMMENT ÇA MARCHE</div>
             <h2 className="nt-h2">Votre devis en 3 étapes</h2>
-            <p className="nt-section-desc">Un assistant IA qualifie votre demande, un moteur déterministe calcule le tarif, un conseiller valide avant l'envoi.</p>
+            <p className="nt-section-desc">Un assistant IA qualifie votre demande, un moteur déterministe calcule le tarif, un conseiller valide avant l’envoi.</p>
           </div>
           <div className="nt-3grid">
             <div className="nt-step-card">
@@ -615,14 +615,14 @@ function Landing({
             </div>
             <div className="nt-step-card">
               <div className="nt-step-num">ÉTAPE 02</div>
-              <h3 className="nt-step-title">L'agent IA estime</h3>
-              <p className="nt-step-desc">L'assistant pose les bonnes questions et calcule un tarif indicatif, traçable et sans surprise.</p>
+              <h3 className="nt-step-title">L’agent IA estime</h3>
+              <p className="nt-step-desc">L’assistant pose les bonnes questions et calcule un tarif indicatif, traçable et sans surprise.</p>
             </div>
             <div className="nt-step-card">
               <div className="nt-step-num">ÉTAPE 03</div>
               <h3 className="nt-step-title">Recevez votre devis</h3>
               <p className="nt-step-desc">Un conseiller confirme la distance et vous envoie le devis définitif sous 24 h.</p>
-              <button className="nt-step-cta" onClick={openChat}>Démarrer avec l'agent IA</button>
+              <button className="nt-step-cta" onClick={openChat}>Démarrer avec l’agent IA</button>
             </div>
           </div>
         </div>
@@ -696,7 +696,7 @@ function Landing({
             <p className="nt-cta-band-desc">Obtenez un devis indicatif en quelques minutes, sans engagement.</p>
           </div>
           <div className="nt-cta-band-actions">
-            <button className="nt-btn-dark-outline" onClick={openChat}>Parler à l'agent IA</button>
+            <button className="nt-btn-dark-outline" onClick={openChat}>Parler à l’agent IA</button>
           </div>
         </div>
       </section>
@@ -706,7 +706,7 @@ function Landing({
         <div className="nt-footer-inner">
           <div>
             <img src="/assets/Neotravel-logo.svg" alt="Neotravel" className="nt-footer-logo" />
-            <p className="nt-footer-desc">Location d'autocar, minibus et bus privé avec chauffeur. Votre trajet, notre priorité.</p>
+            <p className="nt-footer-desc">Location d’autocar, minibus et bus privé avec chauffeur. Votre trajet, notre priorité.</p>
             <div className="nt-footer-phone">09 80 40 04 84</div>
           </div>
           <div>
@@ -776,12 +776,12 @@ function OpIcon({ children, size = 18 }: { children: React.ReactNode; size?: num
   );
 }
 
-const IcoGrid = () => <OpIcon><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></OpIcon>;
-const IcoDocList = () => <OpIcon><path d="M7 3h7l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" /><path d="M9 12h6M9 16h6M9 8h3" /></OpIcon>;
-const IcoHome = () => <OpIcon><path d="M4 11.5 12 4l8 7.5" /><path d="M6 10v9a1 1 0 0 0 1 1h3v-6h4v6h3a1 1 0 0 0 1-1v-9" /></OpIcon>;
-const IcoBell = () => <OpIcon size={20}><path d="M6 9a6 6 0 1 1 12 0c0 3 1 5 1.5 6H4.5C5 14 6 12 6 9Z" /><path d="M10 19a2 2 0 0 0 4 0" /></OpIcon>;
-const IcoPlus = () => <OpIcon size={16}><path d="M12 5v14M5 12h14" /></OpIcon>;
-const IcoLogout = () => <OpIcon><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="m16 17 5-5-5-5" /><path d="M21 12H9" /></OpIcon>;
+const IcoGrid = () => <OpIcon size={16}><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></OpIcon>;
+const IcoDocList = () => <OpIcon size={16}><path d="M7 3h7l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" /><path d="M9 12h6M9 16h6M9 8h3" /></OpIcon>;
+const IcoHome = () => <OpIcon size={16}><path d="M4 11.5 12 4l8 7.5" /><path d="M6 10v9a1 1 0 0 0 1 1h3v-6h4v6h3a1 1 0 0 0 1-1v-9" /></OpIcon>;
+const IcoBell = () => <OpIcon size={17}><path d="M6 9a6 6 0 1 1 12 0c0 3 1 5 1.5 6H4.5C5 14 6 12 6 9Z" /><path d="M10 19a2 2 0 0 0 4 0" /></OpIcon>;
+const IcoPlus = () => <OpIcon size={14}><path d="M12 5v14M5 12h14" /></OpIcon>;
+const IcoLogout = () => <OpIcon size={15}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="m16 17 5-5-5-5" /><path d="M21 12H9" /></OpIcon>;
 const IcoRefresh = () => <OpIcon size={16}><path d="M3 12a9 9 0 0 1 15-6.7L21 8" /><path d="M21 4v4h-4" /><path d="M21 12a9 9 0 0 1-15 6.7L3 16" /><path d="M3 20v-4h4" /></OpIcon>;
 const IcoFile = () => <OpIcon size={16}><path d="M7 3h7l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" /><path d="M9 13h6M9 17h4" /></OpIcon>;
 const IcoExport = () => <OpIcon size={16}><path d="M12 3v12" /><path d="m7 8 5-5 5 5" /><path d="M5 21h14" /></OpIcon>;
@@ -940,7 +940,7 @@ function Dashboard({ setScreen, demandes, now }: { setScreen: (s: Screen) => voi
             <div className="panel-head">
               <div>
                 <h2>Pipeline</h2>
-                <p>Vue d'ensemble des statuts</p>
+                <p>Vue d’ensemble des statuts</p>
               </div>
             </div>
             <div className="pipeline-list">
