@@ -426,21 +426,26 @@ function Landing({
     pushAgent(reply);
   };
 
-  const sendChat = () => {
+  const sendChat = async () => {
     const text = chatInput.trim();
     if (!text && !attachedFileName) return;
 
     const fileIndicator = attachedFileName ? `[Pièce jointe : ${attachedFileName}]` : "";
     const messageText = text ? `${text}${fileIndicator ? " " + fileIndicator : ""}` : fileIndicator;
+    const queryText = text || "J'ai bien reçu votre fichier, je vais l'analyser.";
 
     addMsg("user", messageText);
     setChatInput("");
     setAttachedFileName("");
 
-    if (text) {
-      respond(text);
+    setAgentTyping(true);
+    const reply = await callAgent(queryText);
+    setAgentTyping(false);
+
+    if (reply) {
+      addMsg("agent", reply);
     } else {
-      respond("J'ai bien reçu votre fichier, je vais l'analyser.");
+      respond(queryText);
     }
   };
 
@@ -464,9 +469,16 @@ function Landing({
     setChatInput(prev => prev ? `${prev} ${tag}` : tag);
   };
 
-  const onQuick = (text: string) => {
+  const onQuick = async (text: string) => {
     addMsg("user", text);
-    respond(text);
+    setAgentTyping(true);
+    const reply = await callAgent(text);
+    setAgentTyping(false);
+    if (reply) {
+      addMsg("agent", reply);
+    } else {
+      respond(text);
+    }
   };
 
   return (
