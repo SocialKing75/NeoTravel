@@ -27,6 +27,18 @@ type Demande = {
 
 type TripInfo = { depart?: string; destination?: string; passagers?: string; date?: string };
 
+type NewDemandeInput = {
+  prospect: string;
+  email: string;
+  tel: string;
+  depart: string;
+  destination: string;
+  passagers: string;
+  tripDate: string;
+  vehicule: string;
+  message: string;
+};
+
 /* ─── TIME / FORMAT HELPERS ───────────────────────────────────────────────── */
 
 function startOfDay(d: Date) {
@@ -171,6 +183,7 @@ export default function Home() {
   const [screen, setScreen] = useState<Screen>("landing");
   const [demandes, setDemandes] = useState<Demande[]>(buildInitialDemandes);
   const [agentNotifications, setAgentNotifications] = useState(0);
+  const [showNewDemande, setShowNewDemande] = useState(false);
   const demandeCounter = useRef(42);
   const now = useNow();
 
@@ -213,6 +226,55 @@ export default function Home() {
     setDemandes(list => list.map(d => (d.id === id ? { ...d, tarifMin: min, tarifMax: max } : d)));
   };
 
+  const submitNewDemande = async (input: NewDemandeInput) => {
+    const createdAt = new Date();
+    const id = `NT-2026-${String(demandeCounter.current++).padStart(4, "0")}`;
+    const passagers = input.passagers ? parseInt(input.passagers, 10) || 0 : 0;
+
+    const res = await fetch("/api/devis", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id,
+        prospect: input.prospect,
+        email: input.email,
+        tel: input.tel,
+        depart: input.depart,
+        destination: input.destination,
+        passagers,
+        tripDate: input.tripDate,
+        vehicule: input.vehicule,
+        message: input.message,
+      }),
+    });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      throw new Error(data?.error || "Échec de l'envoi de la demande.");
+    }
+
+    setDemandes(list => [
+      {
+        id,
+        prospect: input.prospect,
+        email: input.email,
+        tel: input.tel,
+        depart: input.depart,
+        destination: input.destination,
+        passagers,
+        tripDate: input.tripDate || "Date à confirmer",
+        vehicule: input.vehicule || "À déterminer",
+        statut: "Nouveau",
+        tarifMin: 0,
+        tarifMax: 0,
+        createdAt,
+        messages: input.message ? [{ role: "user", text: input.message, sentAt: createdAt }] : [],
+      },
+      ...list,
+    ]);
+    setAgentNotifications(n => n + 1);
+  };
+
   if (screen === "landing") {
     return (
       <Landing
@@ -228,10 +290,18 @@ export default function Home() {
     <div className="operator-layout">
       <Sidebar screen={screen} setScreen={goScreen} demandesCount={demandes.length} />
       <main className="operator-main">
-        <Topbar screen={screen} notifications={agentNotifications} now={now} />
+        <Topbar
+          screen={screen}
+          notifications={agentNotifications}
+          now={now}
+          onNewDemande={() => setShowNewDemande(true)}
+        />
         {screen === "dashboard" && <Dashboard setScreen={goScreen} demandes={demandes} now={now} />}
         {screen === "demandes" && <Demandes demandes={demandes} now={now} />}
       </main>
+      {showNewDemande && (
+        <NewDemandeModal onClose={() => setShowNewDemande(false)} onSubmit={submitNewDemande} />
+      )}
     </div>
   );
 }
@@ -252,25 +322,16 @@ function Landing({
   const [chatActive, setChatActive] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
-  const [heroQuery, setHeroQuery] = useState("");
+  const [attachedFileName, setAttachedFileName] = useState("");
   const [agentTyping, setAgentTyping] = useState(false);
   const [agentStage, setAgentStage] = useState(0);
   const [honeypot, setHoneypot] = useState("");
   const formTs = useRef<number>(Date.now());
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const formRef = useRef<HTMLDivElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeDemandeId = useRef<string | null>(null);
   const tripInfo = useRef<TripInfo>({});
-  const sessionId = useRef<string>(`web-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
-
-  useEffect(() => {
-    const stored = localStorage.getItem("nt_session_id");
-    if (stored) {
-      sessionId.current = stored;
-    } else {
-      localStorage.setItem("nt_session_id", sessionId.current);
-    }
-  }, []);
 
   const scrollToForm = () => {
     if (formRef.current) {
@@ -300,6 +361,7 @@ function Landing({
     }
   };
 
+
   const priceMsg = () => {
     const pax = parseInt(tripInfo.current.passagers ?? "", 10) || 30;
     const low = 1200 + pax * 14;
@@ -318,8 +380,8 @@ function Landing({
     }, 1000);
   };
 
-  const openChat = async () => {
-    const query = heroQuery.trim();
+  const openChat = () => {
+    const query = chatInput.trim();
     setChatActive(true);
     setAgentStage(0);
     setAgentTyping(true);
@@ -331,34 +393,19 @@ function Landing({
 
     if (query) {
       addMsg("user", query);
-      setHeroQuery("");
     } else {
       setMessages([]);
     }
 
     const trip = parsed.depart && parsed.destination ? `${parsed.depart} → ${parsed.destination}` : "votre trajet";
     const pax = parsed.passagers ? `${parsed.passagers} passagers` : "votre groupe";
-    const apiReply = await callAgent(query || `Nouvelle demande. Trajet : ${trip}. ${pax}.`);
-    if (apiReply) {
-      addMsg("agent", apiReply);
+    timer.current = setTimeout(() => {
+      addMsg("agent", `Bonjour, je suis l'agent Neotravel. J'ai bien noté votre trajet ${trip} pour ${pax}. Pour affiner le devis, souhaitez-vous un aller simple ou un aller-retour ?`);
       setAgentTyping(false);
-    } else {
-      timer.current = setTimeout(() => {
-        addMsg("agent", `Bonjour, je suis l'agent Neotravel. J'ai bien noté votre trajet ${trip} pour ${pax}. Pour affiner le devis, souhaitez-vous un aller simple ou un aller-retour ?`);
-        setAgentTyping(false);
-      }, 850);
-    }
+    }, 850);
   };
 
-  const respond = async (userText: string) => {
-    setAgentTyping(true);
-    const apiReply = await callAgent(userText);
-    if (apiReply) {
-      addMsg("agent", apiReply);
-      setAgentTyping(false);
-      setAgentStage(s => s + 1);
-      return;
-    }
+  const respond = (userText: string) => {
     const t = userText.toLowerCase();
     let reply: string;
     if (/(prix|tarif|co[uû]t|combien|budget|devis)/.test(t)) {
@@ -380,10 +427,29 @@ function Landing({
 
   const sendChat = () => {
     const text = chatInput.trim();
-    if (!text) return;
-    addMsg("user", text);
+    if (!text && !attachedFileName) return;
+
+    const fileIndicator = attachedFileName ? `[Pièce jointe : ${attachedFileName}]` : "";
+    const messageText = text ? `${text}${fileIndicator ? " " + fileIndicator : ""}` : fileIndicator;
+
+    addMsg("user", messageText);
     setChatInput("");
-    respond(text);
+    setAttachedFileName("");
+
+    if (text) {
+      respond(text);
+    } else {
+      respond("J'ai bien reçu votre fichier, je vais l'analyser.");
+    }
+  };
+
+  const handleAttachClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    setAttachedFileName(file ? file.name : "");
   };
 
   const chatTags = [
@@ -425,6 +491,7 @@ function Landing({
       </header>
 
       <section className="nt-hero nt-hero-home">
+        <input ref={fileInputRef} type="file" className="nt-hidden-file-input" onChange={handleFileChange} />
         <div className="nt-hero-photo" />
         <div className="nt-hero-overlay-1" />
         <div className="nt-hero-overlay-2" />
@@ -439,13 +506,13 @@ function Landing({
             </h1>
             {!chatActive ? (
               <p className="nt-hero-desc nt-hero-desc-home">
-                Décrivez votre besoin, échangez avec notre assistant IA et recevez un devis personnalisé en quelques minutes grâce à notre réseau d'autocaristes partenaires partout en France.
+                Décrivez votre besoin, échangez avec notre assistant IA et recevez un devis personnalisé en quelques minutes grâce à notre réseau d’autocaristes partenaires partout en France.
               </p>
             ) : (
               <div className="nt-chat-panel">
                 <div className="nt-chat-header">
                   <div>
-                    <strong>Conversation avec l'agent Neotravel</strong>
+                    <strong>Conversation avec l’agent Neotravel</strong>
                     <p>Votre assistant de devis est prêt à répondre à vos questions.</p>
                   </div>
                   <button type="button" className="nt-chat-close" onClick={() => setChatActive(false)}>
@@ -485,21 +552,23 @@ function Landing({
                   ))}
                 </div>
                 <div className="nt-chat-input">
-                  <div className="nt-chat-icons">
-                    <button type="button" className="nt-chat-icon-btn" aria-label="Joindre un fichier">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M21.44 11.05 12.95 19.5a5.5 5.5 0 0 1-7.78 0 5.5 5.5 0 0 1 0-7.78l7.07-7.07a3.5 3.5 0 1 1 4.95 4.95L11.5 18.5" />
-                        <path d="M18 6.5 19.5 5" />
-                      </svg>
-                    </button>
-                    <button type="button" className="nt-chat-icon-btn" aria-label="Activer la voix">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M12 1.5a3.5 3.5 0 0 1 3.5 3.5v5a3.5 3.5 0 0 1-7 0v-5A3.5 3.5 0 0 1 12 1.5Z" />
-                        <path d="M8.5 12a3.5 3.5 0 0 0 7 0" />
-                        <path d="M12 19.5v3" />
-                        <path d="M8 22.5h8" />
-                      </svg>
-                    </button>
+                  <div className="nt-chat-controls">
+                    <div className="nt-chat-icons">
+                      <button type="button" className="nt-chat-icon-btn" aria-label="Joindre un fichier" onClick={handleAttachClick}>
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M18.5 6.5 9.71 15.29a3.5 3.5 0 1 1-4.95-4.95l8.79-8.79a5.5 5.5 0 0 1 7.78 7.78l-8.8 8.8a4 4 0 1 1-5.66-5.66L16.5 4.84" />
+                        </svg>
+                      </button>
+                      <button type="button" className="nt-chat-icon-btn" aria-label="Activer la voix">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M12 1.5a3.5 3.5 0 0 1 3.5 3.5v5a3.5 3.5 0 0 1-7 0v-5A3.5 3.5 0 0 1 12 1.5Z" />
+                          <path d="M8.5 12a3.5 3.5 0 0 0 7 0" />
+                          <path d="M12 19.5v3" />
+                          <path d="M8 22.5h8" />
+                        </svg>
+                      </button>
+                    </div>
+                    {attachedFileName && <span className="nt-chat-file-name">{attachedFileName}</span>}
                   </div>
                   <input
                     type="text"
@@ -509,7 +578,7 @@ function Landing({
                     placeholder="Décrivez votre trajet... ex : Paris → Lyon, 45 personnes, 15 juillet"
                   />
                   <button className="nt-send-btn" onClick={sendChat} aria-label="Envoyer">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0E1C2B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0E1C2B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" />
                     </svg>
                   </button>
@@ -530,18 +599,19 @@ function Landing({
                 />
                 <div className="nt-search-input">
                   <input
-                    value={heroQuery}
-                    onChange={e => setHeroQuery(e.target.value)}
+                    value={chatInput}
+                    onChange={e => setChatInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); openChat(); } }}
                     placeholder="Décrivez votre trajet... ex : Paris → Lyon, 45 personnes, 15 juillet"
                   />
-                  <button className="nt-search-attach" aria-label="Joindre un fichier">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <button className="nt-search-attach" aria-label="Joindre un fichier" onClick={handleAttachClick}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M21.44 11.05 12.95 19.5a5.5 5.5 0 0 1-7.78 0 5.5 5.5 0 0 1 0-7.78l7.07-7.07a3.5 3.5 0 1 1 4.95 4.95L11.5 18.5" />
                       <path d="M18 6.5 19.5 5" />
                     </svg>
                   </button>
                   <button className="nt-search-voice" aria-label="Activer la voix">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M12 1.5a3.5 3.5 0 0 1 3.5 3.5v5a3.5 3.5 0 0 1-7 0v-5A3.5 3.5 0 0 1 12 1.5Z" />
                       <path d="M8.5 12a3.5 3.5 0 0 0 7 0" />
                       <path d="M12 19.5v3" />
@@ -549,15 +619,16 @@ function Landing({
                     </svg>
                   </button>
                   <button className="nt-search-go" onClick={openChat} aria-label="Lancer l'agent IA">
-                    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#0E1C2B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0E1C2B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M5 12h14" />
                       <path d="m13 6 6 6-6 6" />
                     </svg>
                   </button>
+                  {attachedFileName && <span className="nt-chat-file-name">{attachedFileName}</span>}
                 </div>
                 <div className="nt-search-tags">
                   {['Paris → Lyon, 45 pers.', 'Devis pour un séminaire', 'Navette aéroport', 'Voyage scolaire'].map(tag => (
-                    <button key={tag} type="button" onClick={() => setHeroQuery(tag)}>{tag}</button>
+                    <button key={tag} type="button" onClick={() => setChatInput(tag)}>{tag}</button>
                   ))}
                 </div>
               </div>
@@ -591,7 +662,7 @@ function Landing({
           <div className="nt-section-head center">
             <div className="nt-label">NOS SERVICES</div>
             <h2 className="nt-h2">Un transport adapté à chaque occasion</h2>
-            <p className="nt-section-desc">Mariages, séminaires, sorties scolaires, transferts aéroport ou événements sportifs — nous mobilisons le véhicule et le chauffeur qu'il vous faut.</p>
+            <p className="nt-section-desc">Mariages, séminaires, sorties scolaires, transferts aéroport ou événements sportifs — nous mobilisons le véhicule et le chauffeur qu’il vous faut.</p>
           </div>
           <div className="nt-4grid">
             {[
@@ -616,7 +687,7 @@ function Landing({
           <div className="nt-section-head center">
             <div className="nt-label">COMMENT ÇA MARCHE</div>
             <h2 className="nt-h2">Votre devis en 3 étapes</h2>
-            <p className="nt-section-desc">Un assistant IA qualifie votre demande, un moteur déterministe calcule le tarif, un conseiller valide avant l'envoi.</p>
+            <p className="nt-section-desc">Un assistant IA qualifie votre demande, un moteur déterministe calcule le tarif, un conseiller valide avant l’envoi.</p>
           </div>
           <div className="nt-3grid">
             <div className="nt-step-card">
@@ -626,14 +697,14 @@ function Landing({
             </div>
             <div className="nt-step-card">
               <div className="nt-step-num">ÉTAPE 02</div>
-              <h3 className="nt-step-title">L'agent IA estime</h3>
-              <p className="nt-step-desc">L'assistant pose les bonnes questions et calcule un tarif indicatif, traçable et sans surprise.</p>
+              <h3 className="nt-step-title">L’agent IA estime</h3>
+              <p className="nt-step-desc">L’assistant pose les bonnes questions et calcule un tarif indicatif, traçable et sans surprise.</p>
             </div>
             <div className="nt-step-card">
               <div className="nt-step-num">ÉTAPE 03</div>
               <h3 className="nt-step-title">Recevez votre devis</h3>
               <p className="nt-step-desc">Un conseiller confirme la distance et vous envoie le devis définitif sous 24 h.</p>
-              <button className="nt-step-cta" onClick={openChat}>Démarrer avec l'agent IA</button>
+              <button className="nt-step-cta" onClick={openChat}>Démarrer avec l’agent IA</button>
             </div>
           </div>
         </div>
@@ -707,7 +778,7 @@ function Landing({
             <p className="nt-cta-band-desc">Obtenez un devis indicatif en quelques minutes, sans engagement.</p>
           </div>
           <div className="nt-cta-band-actions">
-            <button className="nt-btn-dark-outline" onClick={openChat}>Parler à l'agent IA</button>
+            <button className="nt-btn-dark-outline" onClick={openChat}>Parler à l’agent IA</button>
           </div>
         </div>
       </section>
@@ -717,7 +788,7 @@ function Landing({
         <div className="nt-footer-inner">
           <div>
             <img src="/assets/Neotravel-logo.svg" alt="Neotravel" className="nt-footer-logo" />
-            <p className="nt-footer-desc">Location d'autocar, minibus et bus privé avec chauffeur. Votre trajet, notre priorité.</p>
+            <p className="nt-footer-desc">Location d’autocar, minibus et bus privé avec chauffeur. Votre trajet, notre priorité.</p>
             <div className="nt-footer-phone">09 80 40 04 84</div>
           </div>
           <div>
@@ -787,12 +858,12 @@ function OpIcon({ children, size = 18 }: { children: React.ReactNode; size?: num
   );
 }
 
-const IcoGrid = () => <OpIcon><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></OpIcon>;
-const IcoDocList = () => <OpIcon><path d="M7 3h7l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" /><path d="M9 12h6M9 16h6M9 8h3" /></OpIcon>;
-const IcoHome = () => <OpIcon><path d="M4 11.5 12 4l8 7.5" /><path d="M6 10v9a1 1 0 0 0 1 1h3v-6h4v6h3a1 1 0 0 0 1-1v-9" /></OpIcon>;
-const IcoBell = () => <OpIcon size={20}><path d="M6 9a6 6 0 1 1 12 0c0 3 1 5 1.5 6H4.5C5 14 6 12 6 9Z" /><path d="M10 19a2 2 0 0 0 4 0" /></OpIcon>;
-const IcoPlus = () => <OpIcon size={16}><path d="M12 5v14M5 12h14" /></OpIcon>;
-const IcoLogout = () => <OpIcon><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="m16 17 5-5-5-5" /><path d="M21 12H9" /></OpIcon>;
+const IcoGrid = () => <OpIcon size={16}><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></OpIcon>;
+const IcoDocList = () => <OpIcon size={16}><path d="M7 3h7l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" /><path d="M9 12h6M9 16h6M9 8h3" /></OpIcon>;
+const IcoHome = () => <OpIcon size={16}><path d="M4 11.5 12 4l8 7.5" /><path d="M6 10v9a1 1 0 0 0 1 1h3v-6h4v6h3a1 1 0 0 0 1-1v-9" /></OpIcon>;
+const IcoBell = () => <OpIcon size={17}><path d="M6 9a6 6 0 1 1 12 0c0 3 1 5 1.5 6H4.5C5 14 6 12 6 9Z" /><path d="M10 19a2 2 0 0 0 4 0" /></OpIcon>;
+const IcoPlus = () => <OpIcon size={14}><path d="M12 5v14M5 12h14" /></OpIcon>;
+const IcoLogout = () => <OpIcon size={15}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="m16 17 5-5-5-5" /><path d="M21 12H9" /></OpIcon>;
 const IcoRefresh = () => <OpIcon size={16}><path d="M3 12a9 9 0 0 1 15-6.7L21 8" /><path d="M21 4v4h-4" /><path d="M21 12a9 9 0 0 1-15 6.7L3 16" /><path d="M3 20v-4h4" /></OpIcon>;
 const IcoFile = () => <OpIcon size={16}><path d="M7 3h7l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" /><path d="M9 13h6M9 17h4" /></OpIcon>;
 const IcoExport = () => <OpIcon size={16}><path d="M12 3v12" /><path d="m7 8 5-5 5 5" /><path d="M5 21h14" /></OpIcon>;
@@ -840,7 +911,17 @@ function Sidebar({ screen, setScreen, demandesCount }: { screen: Screen; setScre
   );
 }
 
-function Topbar({ screen, notifications, now }: { screen: Screen; notifications: number; now: Date }) {
+function Topbar({
+  screen,
+  notifications,
+  now,
+  onNewDemande,
+}: {
+  screen: Screen;
+  notifications: number;
+  now: Date;
+  onNewDemande: () => void;
+}) {
   const titles: Record<Screen, string> = {
     dashboard: "Tableau de bord",
     demandes: "Demandes",
@@ -864,9 +945,133 @@ function Topbar({ screen, notifications, now }: { screen: Screen; notifications:
           {notifications > 0 && <span className="topbar-bell-dot" />}
         </button>
         <span className="topbar-date">{today}</span>
-        <button type="button" className="topbar-new-btn"><IcoPlus />Nouvelle demande</button>
+        <button type="button" className="topbar-new-btn" onClick={onNewDemande}><IcoPlus />Nouvelle demande</button>
       </div>
     </header>
+  );
+}
+
+const emptyNewDemande: NewDemandeInput = {
+  prospect: "",
+  email: "",
+  tel: "",
+  depart: "",
+  destination: "",
+  passagers: "",
+  tripDate: "",
+  vehicule: "",
+  message: "",
+};
+
+function NewDemandeModal({
+  onClose,
+  onSubmit,
+}: {
+  onClose: () => void;
+  onSubmit: (input: NewDemandeInput) => Promise<void>;
+}) {
+  const [form, setForm] = useState<NewDemandeInput>(emptyNewDemande);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const set = (field: keyof NewDemandeInput) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    setForm(f => ({ ...f, [field]: e.target.value }));
+  };
+
+  const isValid = form.prospect.trim() && form.email.trim() && form.depart.trim() && form.destination.trim();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isValid || submitting) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await onSubmit(form);
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Échec de l'envoi de la demande.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="op-modal-overlay" onMouseDown={onClose}>
+      <div className="op-modal" onMouseDown={e => e.stopPropagation()}>
+        <form onSubmit={handleSubmit}>
+          <div className="op-modal-header">
+            <h2>Nouvelle demande</h2>
+            <p>Créez une demande de devis et transmettez-la par email au client.</p>
+            <button type="button" className="op-modal-close" aria-label="Fermer" onClick={onClose}>×</button>
+          </div>
+
+          <div className="op-modal-body">
+            <div className="op-form-row">
+              <div className="op-form-group">
+                <label htmlFor="nd-prospect">Nom du client *</label>
+                <input id="nd-prospect" required value={form.prospect} onChange={set("prospect")} placeholder="Camille Roux" />
+              </div>
+              <div className="op-form-group">
+                <label htmlFor="nd-email">Email *</label>
+                <input id="nd-email" type="email" required value={form.email} onChange={set("email")} placeholder="client@exemple.fr" />
+              </div>
+            </div>
+
+            <div className="op-form-row">
+              <div className="op-form-group">
+                <label htmlFor="nd-tel">Téléphone</label>
+                <input id="nd-tel" value={form.tel} onChange={set("tel")} placeholder="06 12 34 56 78" />
+              </div>
+              <div className="op-form-group">
+                <label htmlFor="nd-passagers">Nombre de passagers</label>
+                <input id="nd-passagers" type="number" min={1} value={form.passagers} onChange={set("passagers")} placeholder="45" />
+              </div>
+            </div>
+
+            <div className="op-form-row">
+              <div className="op-form-group">
+                <label htmlFor="nd-depart">Départ *</label>
+                <input id="nd-depart" required value={form.depart} onChange={set("depart")} placeholder="Paris" />
+              </div>
+              <div className="op-form-group">
+                <label htmlFor="nd-destination">Destination *</label>
+                <input id="nd-destination" required value={form.destination} onChange={set("destination")} placeholder="Lyon" />
+              </div>
+            </div>
+
+            <div className="op-form-row">
+              <div className="op-form-group">
+                <label htmlFor="nd-date">Date du trajet</label>
+                <input id="nd-date" value={form.tripDate} onChange={set("tripDate")} placeholder="15 juillet 2026" />
+              </div>
+              <div className="op-form-group">
+                <label htmlFor="nd-vehicule">Véhicule souhaité</label>
+                <select id="nd-vehicule" value={form.vehicule} onChange={set("vehicule")}>
+                  <option value="">À déterminer</option>
+                  <option value="Autocar grand tourisme">Autocar grand tourisme</option>
+                  <option value="Minibus & van">Minibus &amp; van</option>
+                  <option value="Bus privé & VIP">Bus privé &amp; VIP</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="op-form-group">
+              <label htmlFor="nd-message">Détails de la demande</label>
+              <textarea id="nd-message" rows={3} value={form.message} onChange={set("message")} placeholder="Séminaire d'entreprise, aller-retour dans la journée..." />
+            </div>
+
+            {error && <p className="op-modal-error">{error}</p>}
+          </div>
+
+          <div className="op-modal-footer">
+            <button type="button" className="table-btn" onClick={onClose}>Annuler</button>
+            <button type="submit" className="table-btn lime" disabled={!isValid || submitting}>
+              {submitting ? "Envoi..." : "Envoyer la demande"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }
 
@@ -951,7 +1156,7 @@ function Dashboard({ setScreen, demandes, now }: { setScreen: (s: Screen) => voi
             <div className="panel-head">
               <div>
                 <h2>Pipeline</h2>
-                <p>Vue d'ensemble des statuts</p>
+                <p>Vue d’ensemble des statuts</p>
               </div>
             </div>
             <div className="pipeline-list">
@@ -985,17 +1190,30 @@ function Dashboard({ setScreen, demandes, now }: { setScreen: (s: Screen) => voi
                 <p>Clients à recontacter</p>
               </div>
             </div>
-            <div className="followups-list">
-              {followups.map(item => (
-                <button key={item.id} type="button" className="followup-item">
-                  <div>
-                    <strong>{item.prospect}</strong>
-                    <span>{item.depart} → {item.destination} · {formatDayLabel(item.createdAt, now)}</span>
-                  </div>
-                  <button className="table-btn lime">Relancer</button>
-                </button>
-              ))}
-            </div>
+            {followups.map(item => (
+  <div
+    key={item.id}
+    className="followup-item"
+    onClick={() => {
+      // action quand on clique sur la ligne
+    }}
+  >
+    <div>
+      <strong>{item.prospect}</strong>
+      <span>{item.depart} → {item.destination}</span>
+  </div>
+
+    <button
+      className="table-btn lime"
+      onClick={(e) => {
+        e.stopPropagation();
+        // action du bouton Relancer
+      }}
+    >
+      Relancer
+    </button>
+  </div>
+))}
           </section>
         </div>
       </div>
