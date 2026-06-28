@@ -327,6 +327,7 @@ function Landing({
   const [agentStage, setAgentStage] = useState(0);
   const [honeypot, setHoneypot] = useState("");
   const formTs = useRef<number>(Date.now());
+  const sessionId = useRef<string>(crypto.randomUUID());
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const formRef = useRef<HTMLDivElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
