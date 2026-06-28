@@ -6,6 +6,8 @@ type ChatRequest = {
   message: string;
   sessionId?: string;
   context?: Record<string, unknown>;
+  honeypot?: string;
+  formTs?: number;
 };
 
 type ChatResponse = {
@@ -61,6 +63,14 @@ export async function POST(req: Request) {
 
   if (!body?.message?.trim()) {
     return NextResponse.json({ error: "Message vide." }, { status: 400 });
+  }
+
+  if (body.honeypot) {
+    return NextResponse.json({ reply: "Merci pour votre message.", slots: null, missing: null, complete: null });
+  }
+
+  if (body.formTs && Date.now() - body.formTs < 2000) {
+    return NextResponse.json({ reply: "Merci pour votre message.", slots: null, missing: null, complete: null });
   }
 
   try {

@@ -255,6 +255,8 @@ function Landing({
   const [heroQuery, setHeroQuery] = useState("");
   const [agentTyping, setAgentTyping] = useState(false);
   const [agentStage, setAgentStage] = useState(0);
+  const [honeypot, setHoneypot] = useState("");
+  const formTs = useRef<number>(Date.now());
   const formRef = useRef<HTMLDivElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeDemandeId = useRef<string | null>(null);
@@ -288,7 +290,7 @@ function Landing({
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, sessionId: sessionId.current }),
+        body: JSON.stringify({ message, sessionId: sessionId.current, honeypot, formTs: formTs.current }),
       });
       const data = await res.json();
       if (res.ok && data.reply && String(data.reply).trim()) return String(data.reply);
@@ -517,6 +519,15 @@ function Landing({
 
             {!chatActive && (
               <div className="nt-search-card">
+                <input
+                  tabIndex={-1}
+                  aria-hidden="true"
+                  style={{ display: "none", position: "absolute", left: "-9999px" }}
+                  value={honeypot}
+                  onChange={e => setHoneypot(e.target.value)}
+                  autoComplete="off"
+                  name="website"
+                />
                 <div className="nt-search-input">
                   <input
                     value={heroQuery}
