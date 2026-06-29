@@ -2619,3 +2619,190 @@ a { color: inherit; text-decoration: none; }
 @media (max-width: 560px) {
   .op-form-row { grid-template-columns: 1fr; }
 }
+
+/* ─── LEGAL / RGPD PAGES ──────────────────────────────────────────────────── */
+
+.legal-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.legal-header {
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
+}
+
+.legal-header-inner {
+  max-width: 840px;
+  margin: 0 auto;
+  padding: 18px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.legal-logo-link { display: flex; align-items: center; }
+.legal-logo { height: 30px; }
+
+.legal-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--dark);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 8px 16px;
+  background: var(--white);
+  text-decoration: none;
+  transition: border-color .18s ease, background .18s ease;
+}
+.legal-back:hover { border-color: var(--lime); background: var(--lime-soft); }
+
+.legal-container {
+  flex: 1;
+  max-width: 840px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 40px 24px 64px;
+}
+
+.legal-card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 40px clamp(20px, 5vw, 56px);
+}
+
+.legal-card h1 {
+  margin: 0 0 10px;
+  font-family: var(--font-sora, "Sora"), system-ui, sans-serif;
+  font-size: clamp(26px, 3vw, 34px);
+  color: var(--dark);
+}
+
+.legal-intro {
+  margin: 0 0 30px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.legal-section { margin-bottom: 30px; }
+.legal-section:last-child { margin-bottom: 0; }
+
+.legal-section h2 {
+  font-size: 18px;
+  color: var(--dark);
+  margin: 0 0 10px;
+  padding-left: 12px;
+  border-left: 3px solid var(--lime);
+}
+
+.legal-section p {
+  margin: 0 0 12px;
+  color: var(--text);
+  line-height: 1.7;
+  font-size: 15px;
+}
+
+.legal-section ul {
+  margin: 0 0 12px;
+  padding-left: 20px;
+  color: var(--text);
+  line-height: 1.7;
+  font-size: 15px;
+}
+
+.legal-section li { margin-bottom: 4px; }
+
+.legal-section a { color: var(--blue); text-decoration: underline; }
+
+.legal-footer {
+  max-width: 840px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 0 24px 32px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.legal-footer a { color: var(--dark); font-weight: 700; text-decoration: none; }
+.legal-footer a:hover { color: #5a7000; }
+
+@media (max-width: 560px) {
+  .legal-footer { flex-direction: column; text-align: center; }
+}
+
+/* ─── RGPD CONSENT / PRIVACY NOTE / COOKIE BANNER ────────────────────────────── */
+
+.privacy-note {
+  margin: 14px 0 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--muted);
+  max-width: 640px;
+}
+.privacy-note a { color: var(--dark); font-weight: 700; text-decoration: underline; }
+
+.nt-hero-text .privacy-note { color: rgba(255,255,255,.65); }
+.nt-hero-text .privacy-note a { color: #fff; }
+
+.rgpd-consent {
+  margin-top: 14px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text);
+}
+.rgpd-consent label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+}
+.rgpd-consent input[type="checkbox"] {
+  margin-top: 3px;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--lime);
+  flex-shrink: 0;
+}
+.rgpd-consent a { color: var(--dark); font-weight: 700; text-decoration: underline; }
+
+.cookie-banner {
+  position: fixed;
+  left: 20px;
+  right: 20px;
+  bottom: 20px;
+  z-index: 2000;
+  background: var(--dark);
+  color: #fff;
+  border-radius: 18px;
+  padding: 20px 24px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.35);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.cookie-banner-body { flex: 1 1 380px; }
+.cookie-banner-body p { margin: 0; font-size: 13.5px; line-height: 1.6; color: rgba(255,255,255,.85); }
+.cookie-banner-body a { color: var(--lime); font-weight: 700; }
+.cookie-banner-options { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+.cookie-banner-options label { display: flex; align-items: center; gap: 8px; font-size: 13px; color: rgba(255,255,255,.85); }
+.cookie-banner-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+@media (max-width: 640px) {
+  .cookie-banner { left: 12px; right: 12px; bottom: 12px; padding: 16px; }
+}

@@ -9,6 +9,7 @@ export type DevisRequestPayload = {
   tripDate?: string;
   vehicule?: string;
   message?: string;
+  rgpdConsent?: boolean;
 };
 
 export type DevisRequestResponse = {

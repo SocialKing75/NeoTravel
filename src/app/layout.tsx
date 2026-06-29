@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { IBM_Plex_Sans, Sora } from "next/font/google";
+import CookieBanner from "@/components/CookieBanner";
 
 const ibm = IBM_Plex_Sans({
   subsets: ["latin"],
@@ -26,7 +27,10 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="fr" className={`${ibm.variable} ${sora.variable}`}>
-      <body>{children}</body>
+      <body>
+        {children}
+        <CookieBanner />
+      </body>
     </html>
   );
 }

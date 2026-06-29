@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import Link from "next/link";
 import { createDevisRequest } from "@/services";
 import { formatDistance } from "@/utils/distanceCalculator";
+import { generateDevisPdf } from "@/utils/pdfGenerator";
 
 type Screen = "landing" | "dashboard" | "demandes";
 
@@ -27,6 +29,7 @@ type Demande = {
   messages: ChatMessage[];
   relances?: number;
   distanceKm?: number;
+  rgpdConsent?: boolean;
 };
 
 type TripInfo = { depart?: string; destination?: string; passagers?: string; date?: string };
@@ -41,6 +44,7 @@ type NewDemandeInput = {
   tripDate: string;
   vehicule: string;
   message: string;
+  rgpdConsent: boolean;
 };
 
 /* ─── TIME / FORMAT HELPERS ───────────────────────────────────────────────── */
@@ -88,55 +92,6 @@ function estimateTarif(passagers: number) {
   const tarifMin = 1200 + pax * 14;
   const tarifMax = Math.round(tarifMin * 1.32);
   return { tarifMin, tarifMax };
-}
-
-function escapeCsvValue(value: string) {
-  if (/[",;\n]/.test(value)) {
-    return `"${value.replace(/"/g, '""')}"`;
-  }
-  return value;
-}
-
-function buildDemandeCsv(demande: Demande) {
-  const rows: [string, string][] = [
-    ["Référence", demande.id],
-    ["Prospect", demande.prospect],
-    ["Email", demande.email],
-    ["Téléphone", demande.tel],
-    ["Trajet", `${demande.depart} -> ${demande.destination}`],
-    ["Date", demande.tripDate],
-    ["Passagers", String(demande.passagers)],
-    ["Véhicule", demande.vehicule],
-    ["Statut", demande.statut],
-    ["Tarif min", String(demande.tarifMin)],
-    ["Tarif max", String(demande.tarifMax)],
-  ];
-
-  const lines = rows.map(([label, value]) => `${escapeCsvValue(label)};${escapeCsvValue(value)}`);
-
-  lines.push("");
-  lines.push("Historique des messages");
-  if (demande.messages.length === 0) {
-    lines.push(`${escapeCsvValue("—")};${escapeCsvValue("Aucun message pour le moment.")}`);
-  } else {
-    demande.messages.forEach(m => {
-      lines.push(`${escapeCsvValue(m.sentAt.toLocaleString("fr-FR"))};${escapeCsvValue(`${m.role}: ${m.text}`)}`);
-    });
-  }
-
-  return lines.join("\n");
-}
-
-function downloadTextFile(filename: string, content: string, mimeType: string) {
-  const blob = new Blob([content], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
 }
 
 function parseTripQuery(query: string): TripInfo {
@@ -266,7 +221,7 @@ export default function Home() {
     setScreen(target);
   };
 
-  const addDemande = (info: TripInfo) => {
+  const addDemande = (info: TripInfo, rgpdConsent: boolean) => {
     const createdAt = new Date();
     const id = `NT-2026-${String(demandeCounter.current++).padStart(4, "0")}`;
     setDemandes(list => [
@@ -285,6 +240,7 @@ export default function Home() {
         tarifMax: 0,
         createdAt,
         messages: [],
+        rgpdConsent,
       },
       ...list,
     ]);
@@ -347,15 +303,18 @@ export default function Home() {
         typeof result.tarifMin === "number" && typeof result.tarifMax === "number"
           ? { tarifMin: result.tarifMin, tarifMax: result.tarifMax }
           : estimateTarif(target.passagers);
+      const distanceKm = typeof result.distanceKm === "number" ? result.distanceKm : target.distanceKm;
 
-      updateDemande(demandeId, {
-        statut: "Devis envoyé",
-        tarifMin,
-        tarifMax,
-        distanceKm: typeof result.distanceKm === "number" ? result.distanceKm : target.distanceKm,
-      });
+      updateDemande(demandeId, { statut: "Devis envoyé", tarifMin, tarifMax, distanceKm });
       addHistoryMessage(demandeId, "Devis généré et envoyé au prospect.");
       showToast(`Devis généré pour ${target.prospect}`, "success");
+
+      try {
+        generateDevisPdf({ ...target, statut: "Devis envoyé", tarifMin, tarifMax, distanceKm });
+        addHistoryMessage(demandeId, "PDF du devis généré automatiquement.");
+      } catch {
+        showToast("Erreur lors de la génération du PDF.", "error");
+      }
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Échec de la génération du devis.", "error");
     } finally {
@@ -365,9 +324,16 @@ export default function Home() {
 
   const handleExport = (demandeId: string) => {
     const target = demandes.find(d => d.id === demandeId);
-    if (!target) return;
-    downloadTextFile(`neotravel-demande-${target.id}.csv`, buildDemandeCsv(target), "text/csv;charset=utf-8;");
-    showToast("Export téléchargé.", "success");
+    if (!target) {
+      showToast("Aucune demande sélectionnée.", "error");
+      return;
+    }
+    try {
+      generateDevisPdf(target);
+      showToast("PDF du devis téléchargé.", "success");
+    } catch {
+      showToast("Erreur lors de la génération du PDF.", "error");
+    }
   };
 
   const submitNewDemande = async (input: NewDemandeInput) => {
@@ -386,6 +352,7 @@ export default function Home() {
       tripDate: input.tripDate,
       vehicule: input.vehicule,
       message: input.message,
+      rgpdConsent: input.rgpdConsent,
     });
 
     setDemandes(list => [
@@ -404,6 +371,7 @@ export default function Home() {
         tarifMax: 0,
         createdAt,
         messages: input.message ? [{ role: "user", text: input.message, sentAt: createdAt }] : [],
+        rgpdConsent: true,
       },
       ...list,
     ]);
@@ -471,7 +439,7 @@ function Landing({
   updateDemandeTarif,
 }: {
   setScreen: (s: Screen) => void;
-  addDemande: (info: TripInfo) => string;
+  addDemande: (info: TripInfo, rgpdConsent: boolean) => string;
   appendMessage: (id: string, message: ChatMessage) => void;
   updateDemandeTarif: (id: string, min: number, max: number) => void;
 }) {
@@ -482,10 +450,12 @@ function Landing({
   const [agentTyping, setAgentTyping] = useState(false);
   const [agentStage, setAgentStage] = useState(0);
   const [honeypot, setHoneypot] = useState("");
+  const [rgpdConsent, setRgpdConsent] = useState(false);
   const formTs = useRef<number>(Date.now());
   const sessionId = useRef<string>(crypto.randomUUID());
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const formRef = useRef<HTMLDivElement>(null);
+  const consentRef = useRef<HTMLDivElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeDemandeId = useRef<string | null>(null);
   const tripInfo = useRef<TripInfo>({});
@@ -537,6 +507,14 @@ function Landing({
   };
 
   const openChat = () => {
+    if (!rgpdConsent) {
+      if (consentRef.current) {
+        const y = consentRef.current.getBoundingClientRect().top + window.scrollY - 120;
+        window.scrollTo({ top: y, behavior: "smooth" });
+      }
+      return;
+    }
+
     const query = chatInput.trim();
     setChatActive(true);
     setAgentStage(0);
@@ -545,7 +523,7 @@ function Landing({
 
     const parsed = parseTripQuery(query);
     tripInfo.current = parsed;
-    activeDemandeId.current = addDemande(parsed);
+    activeDemandeId.current = addDemande(parsed, rgpdConsent);
 
     if (query) {
       addMsg("user", query);
@@ -786,7 +764,7 @@ function Landing({
                       <path d="M8 22.5h8" />
                     </svg>
                   </button>
-                  <button className="nt-search-go" onClick={openChat} aria-label="Lancer l'agent IA">
+                  <button className="nt-search-go" onClick={openChat} aria-label="Lancer l'agent IA" disabled={!rgpdConsent}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0E1C2B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M5 12h14" />
                       <path d="m13 6 6 6-6 6" />
@@ -799,8 +777,28 @@ function Landing({
                     <button key={tag} type="button" onClick={() => setChatInput(tag)}>{tag}</button>
                   ))}
                 </div>
+                <div ref={consentRef} className="rgpd-consent">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={rgpdConsent}
+                      onChange={e => setRgpdConsent(e.target.checked)}
+                    />
+                    <span>
+                      J’accepte que NeoTravel traite mes données personnelles afin de répondre à
+                      ma demande de devis, conformément à la{" "}
+                      <Link href="/confidentialite">Politique de confidentialité</Link>.
+                    </span>
+                  </label>
+                </div>
               </div>
             )}
+
+            <p className="privacy-note">
+              Les informations transmises via le chatbot sont utilisées uniquement pour qualifier
+              votre demande de devis. Elles peuvent être traitées par notre agent IA, n8n et
+              Airtable dans le cadre du suivi commercial. <Link href="/confidentialite">En savoir plus</Link>.
+            </p>
           </div>
         </div>
       </section>
@@ -980,7 +978,14 @@ function Landing({
         <div className="nt-footer-bottom">
           <span>© 2026 Neotravel — Tous droits réservés</span>
           <div className="nt-footer-legal">
-            {["Mentions légales", "CGV", "Confidentialité"].map(l => <a key={l} href="#">{l}</a>)}
+            {[
+              { label: "Mentions légales", href: "/mentions-legales" },
+              { label: "CGV", href: "/cgv" },
+              { label: "Confidentialité", href: "/confidentialite" },
+              { label: "Cookies", href: "/cookies" },
+            ].map(l => (
+              <Link key={l.href} href={l.href}>{l.label}</Link>
+            ))}
           </div>
         </div>
       </footer>
@@ -1129,6 +1134,7 @@ const emptyNewDemande: NewDemandeInput = {
   tripDate: "",
   vehicule: "",
   message: "",
+  rgpdConsent: false,
 };
 
 function NewDemandeModal({
@@ -1146,7 +1152,9 @@ function NewDemandeModal({
     setForm(f => ({ ...f, [field]: e.target.value }));
   };
 
-  const isValid = form.prospect.trim() && form.email.trim() && form.depart.trim() && form.destination.trim();
+  const isValid = Boolean(
+    form.prospect.trim() && form.email.trim() && form.depart.trim() && form.destination.trim() && form.rgpdConsent,
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1226,6 +1234,21 @@ function NewDemandeModal({
             <div className="op-form-group">
               <label htmlFor="nd-message">Détails de la demande</label>
               <textarea id="nd-message" rows={3} value={form.message} onChange={set("message")} placeholder="Séminaire d'entreprise, aller-retour dans la journée..." />
+            </div>
+
+            <div className="rgpd-consent">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={form.rgpdConsent}
+                  onChange={e => setForm(f => ({ ...f, rgpdConsent: e.target.checked }))}
+                />
+                <span>
+                  J’accepte que NeoTravel traite mes données personnelles afin de répondre à ma
+                  demande de devis, conformément à la{" "}
+                  <Link href="/confidentialite">Politique de confidentialité</Link>.
+                </span>
+              </label>
             </div>
 
             {error && <p className="op-modal-error">{error}</p>}
@@ -1405,6 +1428,8 @@ function Dashboard({
           </section>
         </div>
       </div>
+
+      <p className="privacy-note">Données confidentielles — accès réservé aux utilisateurs autorisés.</p>
     </section>
   );
 }
@@ -1591,6 +1616,8 @@ function Demandes({
           </section>
         </main>
       </div>
+
+      <p className="privacy-note">Données confidentielles — accès réservé aux utilisateurs autorisés.</p>
     </section>
   );
 }
