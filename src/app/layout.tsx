@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { IBM_Plex_Sans, Sora } from "next/font/google";
 import CookieBanner from "@/components/CookieBanner";
+import Providers from "@/components/Providers";
 
 const ibm = IBM_Plex_Sans({
   subsets: ["latin"],
@@ -28,8 +29,10 @@ export default function RootLayout({
   return (
     <html lang="fr" className={`${ibm.variable} ${sora.variable}`}>
       <body>
-        {children}
-        <CookieBanner />
+        <Providers>
+          {children}
+          <CookieBanner />
+        </Providers>
       </body>
     </html>
   );

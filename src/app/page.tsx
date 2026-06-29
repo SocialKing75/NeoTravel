@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { createDevisRequest } from "@/services";
 import { formatDistance } from "@/utils/distanceCalculator";
@@ -196,6 +197,7 @@ function buildInitialDemandes(): Demande[] {
 }
 
 export default function Home() {
+  const { data: session } = useSession();
   const [screen, setScreen] = useState<Screen>("landing");
   const [demandes, setDemandes] = useState<Demande[]>(buildInitialDemandes);
   const [agentNotifications, setAgentNotifications] = useState(0);
@@ -205,6 +207,12 @@ export default function Home() {
   const [generatingDevisId, setGeneratingDevisId] = useState<string | null>(null);
   const demandeCounter = useRef(42);
   const now = useNow();
+
+  useEffect(() => {
+    if ((session?.user as { role?: string })?.role === "agent") {
+      setScreen("dashboard");
+    }
+  }, [session]);
 
   const showToast = (text: string, type: "success" | "error" = "success") => {
     setToast({ text, type });
@@ -221,14 +229,14 @@ export default function Home() {
     setScreen(target);
   };
 
-  const addDemande = (info: TripInfo, rgpdConsent: boolean) => {
+  const addDemande = (info: TripInfo, rgpdConsent: boolean, prospectName = "Nouveau prospect", prospectEmail = "") => {
     const createdAt = new Date();
     const id = `NT-2026-${String(demandeCounter.current++).padStart(4, "0")}`;
     setDemandes(list => [
       {
         id,
-        prospect: "Nouveau prospect",
-        email: "",
+        prospect: prospectName,
+        email: prospectEmail,
         tel: "",
         depart: info.depart || "—",
         destination: info.destination || "—",
@@ -245,6 +253,22 @@ export default function Home() {
       ...list,
     ]);
     setAgentNotifications(n => n + 1);
+
+    const N8N_SAVE_URL = process.env.NEXT_PUBLIC_N8N_SAVE_DEMANDE_URL ?? "http://localhost:5678/webhook/save-demande";
+    fetch(N8N_SAVE_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        prospect: prospectName,
+        email: prospectEmail,
+        depart: info.depart || "—",
+        destination: info.destination || "—",
+        passagers: info.passagers ? parseInt(info.passagers, 10) : 0,
+        tripDate: info.date || "Date à confirmer",
+        statut: "Nouveau",
+      }),
+    }).catch(() => {});
+
     return id;
   };
 
@@ -439,7 +463,7 @@ function Landing({
   updateDemandeTarif,
 }: {
   setScreen: (s: Screen) => void;
-  addDemande: (info: TripInfo, rgpdConsent: boolean) => string;
+  addDemande: (info: TripInfo, rgpdConsent: boolean, prospectName?: string, prospectEmail?: string) => string;
   appendMessage: (id: string, message: ChatMessage) => void;
   updateDemandeTarif: (id: string, min: number, max: number) => void;
 }) {
@@ -539,7 +563,7 @@ function Landing({
 
     const parsed = parseTripQuery(query);
     tripInfo.current = parsed;
-    activeDemandeId.current = addDemande(parsed, rgpdConsent);
+    activeDemandeId.current = addDemande(parsed, rgpdConsent, userFirstName.trim(), userEmail.trim());
 
     if (query) {
       addMsg("user", query);
@@ -547,10 +571,18 @@ function Landing({
       setMessages([]);
     }
 
-    const trip = parsed.depart && parsed.destination ? `${parsed.depart} → ${parsed.destination}` : "votre trajet";
-    const pax = parsed.passagers ? `${parsed.passagers} passagers` : "votre groupe";
+    const hasTrip = parsed.depart && parsed.destination;
+    const hasPax = !!parsed.passagers;
+    let greeting: string;
+    if (hasTrip && hasPax) {
+      greeting = `Bonjour ${userFirstName} ! J'ai bien noté votre trajet ${parsed.depart} → ${parsed.destination} pour ${parsed.passagers} passagers. Souhaitez-vous un aller simple ou un aller-retour ?`;
+    } else if (hasTrip) {
+      greeting = `Bonjour ${userFirstName} ! J'ai bien noté votre trajet ${parsed.depart} → ${parsed.destination}. Combien de passagers serez-vous ?`;
+    } else {
+      greeting = `Bonjour ${userFirstName} ! Je suis l'agent Neotravel, je suis là pour vous établir un devis personnalisé. Pouvez-vous me préciser votre ville de départ, votre destination et le nombre de passagers ?`;
+    }
     timer.current = setTimeout(() => {
-      addMsg("agent", `Bonjour ${userFirstName} ! Je suis l'agent Neotravel. J'ai bien noté votre trajet ${trip} pour ${pax}. Pour affiner le devis, souhaitez-vous un aller simple ou un aller-retour ?`);
+      addMsg("agent", greeting);
       setAgentTyping(false);
     }, 850);
   };
@@ -632,8 +664,7 @@ function Landing({
             <a href="#">Blog</a>
           </nav>
           <div className="nt-header-actions">
-            <button className="nt-header-agent" onClick={() => setScreen("dashboard")}>Espace agent</button>
-            <a className="nt-phone-btn" href="tel:0980400484">09 80 40 04 84</a>
+            <a className="nt-phone-btn" href="/login">Connexion</a>
           </div>
         </div>
       </header>
@@ -644,10 +675,6 @@ function Landing({
         <div className="nt-hero-overlay-2" />
         <div className="nt-hero-inner hero-home-inner">
           <div className="nt-hero-text">
-            <div className="nt-eyebrow nt-eyebrow-home">
-              <span className="nt-eyebrow-dot" />
-              <span>TRANSPORT PREMIUM AVEC CHAUFFEUR</span>
-            </div>
             <h1 className="nt-h1 nt-h1-home">
               Organisez votre transport de groupe<br />en toute simplicité
             </h1>
@@ -682,6 +709,20 @@ function Landing({
                     </div>
                   )}
                 </div>
+                <div className="nt-chat-input">
+                  <input
+                    type="text"
+                    value={chatInput}
+                    onChange={e => setChatInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
+                    placeholder="Décrivez votre trajet... ex : Paris → Lyon, 45 personnes, 15 juillet"
+                  />
+                  <button className="nt-send-btn" onClick={sendChat} aria-label="Envoyer">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0E1C2B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" />
+                    </svg>
+                  </button>
+                </div>
                 <div className="nt-chat-quicks">
                   {[
                     "Aller-retour",
@@ -696,20 +737,6 @@ function Landing({
                   {chatTags.map(tag => (
                     <button key={tag} type="button" className="nt-chat-tag" onClick={() => insertTag(tag)}>{tag}</button>
                   ))}
-                </div>
-                <div className="nt-chat-input">
-                  <input
-                    type="text"
-                    value={chatInput}
-                    onChange={e => setChatInput(e.target.value)}
-                    onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
-                    placeholder="Décrivez votre trajet... ex : Paris → Lyon, 45 personnes, 15 juillet"
-                  />
-                  <button className="nt-send-btn" onClick={sendChat} aria-label="Envoyer">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0E1C2B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" />
-                    </svg>
-                  </button>
                 </div>
               </div>
             )}
