@@ -1,0 +1,53 @@
+========================================================
+À FAIRE — Garde-fous workflow n8n (Devis PDF)
+Noté le 29 juin à 14h00
+========================================================
+
+Workflow concerné : n8n-workflow-devis.json
+(Webhook -> HTML Devis -> PDF Gotenberg -> Email Client -> Répondre)
+NB : ce workflow est déterministe, aucune IA dedans. L'agent IA
+est ailleurs (callAgent câblé au dernier commit).
+
+--------------------------------------------------------
+PAR ORDRE DE GRAVITÉ
+--------------------------------------------------------
+
+[1] CRITIQUE — Webhook public sans auth = relais à spam / bombe à coûts
+    - POST /devis ouvert à tout le monde.
+    - toEmail = email fourni par le client -> on peut spammer
+      n'importe qui depuis le domaine Neotravel (délivrabilité crame).
+    - Déclenchement en boucle = coût Gotenberg + envoi mails + blacklist IP.
+    -> Ajouter header secret (x-webhook-token) + rate-limit.
+    -> À traiter AVANT toute mise en prod.
+
+[2] Validation d'entrée
+    - Aucun check que email, prospect, depart, destination existent.
+    - Résultat : "Bonjour undefined", mail dans le vide, node qui throw.
+    -> Node Validate qui rejette proprement (400) si champ requis
+       manquant ou email malformé.
+
+[3] Injection HTML (XSS / casse de mise en page)
+    - item.message, item.prospect injectés bruts dans le HTML du devis
+      ET dans le corps de l'email HTML.
+    - Vecteur réel surtout dans l'email.
+    -> Échapper toutes les valeurs fournies par le client.
+
+[4] Gestion d'erreur
+    - Si Gotenberg (localhost:3000) down ou envoi mail échoue : tout throw,
+      client n'a rien, équipe pas prévenue.
+    -> Error Trigger / branche de fallback + notif interne.
+
+[5] Pricing sans bornes
+    - Number(item.passagers) || 30 : envoyer 0 -> retombe sur 30.
+    - pax négatif ou 99999 -> tarif délirant affiché comme estimation officielle.
+    -> Clamp (ex. 1 à 250) + garde-fou métier.
+
+[6] Pas de copie équipe / log / dédup
+    - Devis part au client mais rien tracé ni envoyé en interne.
+    - Double submit = deux mails.
+    -> BCC interne ou ligne en base + clé d'idempotence.
+
+--------------------------------------------------------
+Option : réécrire le JSON durci (validation + échappement HTML
++ token webhook + clamp tarif + branche erreur).
+========================================================

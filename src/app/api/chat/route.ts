@@ -79,6 +79,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Message vide." }, { status: 400 });
   }
 
+  if (body.message.length > 2000) {
+    return NextResponse.json({ error: "Message trop long." }, { status: 400 });
+  }
+
   if (body.honeypot) {
     return NextResponse.json({ reply: "Merci pour votre message.", slots: null, missing: null, complete: null });
   }
@@ -99,8 +103,8 @@ export async function POST(req: Request) {
         "ngrok-skip-browser-warning": "true",
       },
       body: JSON.stringify({
-        message: body.message,
-        sessionId: body.sessionId ?? "anon",
+        message: body.message.slice(0, 2000),
+        sessionId: (body.sessionId ?? "anon").replace(/[^a-zA-Z0-9\-_]/g, "").slice(0, 64) || "anon",
         context: body.context ?? {},
       }),
       signal: controller.signal,

@@ -171,10 +171,10 @@ a { color: inherit; text-decoration: none; }
 .nt-hero-photo {
   position: absolute;
   inset: 0;
-  background-image: linear-gradient(180deg, rgba(241,243,238,.82), rgba(241,243,238,.52)), url('/assets/fleet.png');
+  background-image: url('/assets/fleet.png');
   background-size: cover;
   background-position: center 58%;
-  filter: saturate(1.05) contrast(1.03) blur(3px);
+  filter: saturate(1.05) contrast(1.03);
 }
 
 .nt-hero-overlay-1 {
@@ -194,6 +194,15 @@ a { color: inherit; text-decoration: none; }
   max-width: 1240px;
   margin: 0 auto;
   padding: 36px 24px 80px;
+}
+
+.nt-hero-text {
+  background: #fff;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: 20px;
+  padding: 32px 36px;
+  box-shadow: 0 8px 40px rgba(9,20,33,.18);
 }
 
 .hero-home-inner {
@@ -225,7 +234,7 @@ a { color: inherit; text-decoration: none; }
 }
 
 .nt-hero-desc-home {
-  color: rgba(255,255,255,.78);
+  color: #0E1C2B;
   max-width: 700px;
   margin: 0 auto 38px;
   text-align: center;
@@ -856,7 +865,7 @@ a { color: inherit; text-decoration: none; }
 .nt-trust {
   position: relative;
   border-top: 1px solid var(--nt-border);
-  background: #e4ebdd;
+  background: #b8ccaa;
   margin-top: 0;
 }
 
@@ -2809,8 +2818,8 @@ a { color: inherit; text-decoration: none; }
 }
 .privacy-note a { color: var(--dark); font-weight: 700; text-decoration: underline; }
 
-.nt-hero-text .privacy-note { color: var(--nt-muted); }
-.nt-hero-text .privacy-note a { color: var(--nt-text); }
+.nt-hero-text .privacy-note { color: #0E1C2B; }
+.nt-hero-text .privacy-note a { color: #0E1C2B; }
 
 .rgpd-consent {
   display: block;

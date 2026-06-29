@@ -111,7 +111,7 @@ function LoginContent() {
               autoFocus
             />
             <button type="submit" disabled={loading}>
-              {loading ? "Envoi…" : "Recevoir mon lien de connexion"}
+              {loading ? "Envoi…" : "Me connecter"}
             </button>
           </form>
         ) : (

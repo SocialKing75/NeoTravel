@@ -671,8 +671,6 @@ function Landing({
 
       <section className="nt-hero nt-hero-home">
         <div className="nt-hero-photo" />
-        <div className="nt-hero-overlay-1" />
-        <div className="nt-hero-overlay-2" />
         <div className="nt-hero-inner hero-home-inner">
           <div className="nt-hero-text">
             <h1 className="nt-h1 nt-h1-home">
