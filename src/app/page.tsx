@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { createDevisRequest } from "@/services";
+import { formatDistance } from "@/utils/distanceCalculator";
 
 type Screen = "landing" | "dashboard" | "demandes";
 
 type ChatMessage = { role: "agent" | "user"; text: string; sentAt: Date };
 
-type DemandeStatus = "Nouveau" | "En cours" | "Devis envoyé" | "En attente";
+type DemandeStatus = "Nouveau" | "En cours" | "Devis envoyé" | "En attente" | "En relance" | "Accepté" | "Refusé";
 
 type Demande = {
   id: string;
@@ -23,6 +25,8 @@ type Demande = {
   tarifMax: number;
   createdAt: Date;
   messages: ChatMessage[];
+  relances?: number;
+  distanceKm?: number;
 };
 
 type TripInfo = { depart?: string; destination?: string; passagers?: string; date?: string };
@@ -65,8 +69,9 @@ function initials(name: string) {
 
 function statusBadgeClass(statut: DemandeStatus) {
   if (statut === "En cours") return "blue";
-  if (statut === "En attente") return "warning";
-  return "lime";
+  if (statut === "En attente" || statut === "En relance") return "warning";
+  if (statut === "Refusé") return "danger";
+  return "lime"; // Nouveau, Devis envoyé, Accepté
 }
 
 function useNow(intervalMs = 30000) {
@@ -76,6 +81,62 @@ function useNow(intervalMs = 30000) {
     return () => clearInterval(id);
   }, [intervalMs]);
   return now;
+}
+
+function estimateTarif(passagers: number) {
+  const pax = passagers > 0 ? passagers : 30;
+  const tarifMin = 1200 + pax * 14;
+  const tarifMax = Math.round(tarifMin * 1.32);
+  return { tarifMin, tarifMax };
+}
+
+function escapeCsvValue(value: string) {
+  if (/[",;\n]/.test(value)) {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+  return value;
+}
+
+function buildDemandeCsv(demande: Demande) {
+  const rows: [string, string][] = [
+    ["Référence", demande.id],
+    ["Prospect", demande.prospect],
+    ["Email", demande.email],
+    ["Téléphone", demande.tel],
+    ["Trajet", `${demande.depart} -> ${demande.destination}`],
+    ["Date", demande.tripDate],
+    ["Passagers", String(demande.passagers)],
+    ["Véhicule", demande.vehicule],
+    ["Statut", demande.statut],
+    ["Tarif min", String(demande.tarifMin)],
+    ["Tarif max", String(demande.tarifMax)],
+  ];
+
+  const lines = rows.map(([label, value]) => `${escapeCsvValue(label)};${escapeCsvValue(value)}`);
+
+  lines.push("");
+  lines.push("Historique des messages");
+  if (demande.messages.length === 0) {
+    lines.push(`${escapeCsvValue("—")};${escapeCsvValue("Aucun message pour le moment.")}`);
+  } else {
+    demande.messages.forEach(m => {
+      lines.push(`${escapeCsvValue(m.sentAt.toLocaleString("fr-FR"))};${escapeCsvValue(`${m.role}: ${m.text}`)}`);
+    });
+  }
+
+  return lines.join("\n");
+}
+
+function downloadTextFile(filename: string, content: string, mimeType: string) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
 
 function parseTripQuery(query: string): TripInfo {
@@ -184,8 +245,21 @@ export default function Home() {
   const [demandes, setDemandes] = useState<Demande[]>(buildInitialDemandes);
   const [agentNotifications, setAgentNotifications] = useState(0);
   const [showNewDemande, setShowNewDemande] = useState(false);
+  const [toast, setToast] = useState<{ text: string; type: "success" | "error" } | null>(null);
+  const [selectedDemandeId, setSelectedDemandeId] = useState<string | null>(null);
+  const [generatingDevisId, setGeneratingDevisId] = useState<string | null>(null);
   const demandeCounter = useRef(42);
   const now = useNow();
+
+  const showToast = (text: string, type: "success" | "error" = "success") => {
+    setToast({ text, type });
+  };
+
+  useEffect(() => {
+    if (!toast) return;
+    const id = setTimeout(() => setToast(null), 3500);
+    return () => clearTimeout(id);
+  }, [toast]);
 
   const goScreen = (target: Screen) => {
     if (target === "demandes") setAgentNotifications(0);
@@ -222,8 +296,78 @@ export default function Home() {
     setDemandes(list => list.map(d => (d.id === id ? { ...d, messages: [...d.messages, message] } : d)));
   };
 
+  const addHistoryMessage = (demandeId: string, text: string) => {
+    appendMessage(demandeId, { role: "agent", text, sentAt: new Date() });
+  };
+
+  const updateDemande = (demandeId: string, patch: Partial<Demande>) => {
+    setDemandes(list => list.map(d => (d.id === demandeId ? { ...d, ...patch } : d)));
+  };
+
   const updateDemandeTarif = (id: string, min: number, max: number) => {
-    setDemandes(list => list.map(d => (d.id === id ? { ...d, tarifMin: min, tarifMax: max } : d)));
+    updateDemande(id, { tarifMin: min, tarifMax: max });
+  };
+
+  const selectDemande = (demandeId: string) => {
+    setSelectedDemandeId(demandeId);
+  };
+
+  const getSelectedDemande = (): Demande | undefined => {
+    return demandes.find(d => d.id === selectedDemandeId) ?? demandes[0];
+  };
+
+  const handleRelance = (demandeId: string) => {
+    const target = demandes.find(d => d.id === demandeId);
+    if (!target) return;
+    updateDemande(demandeId, { statut: "En relance", relances: (target.relances ?? 0) + 1 });
+    addHistoryMessage(demandeId, "Relance envoyée au prospect.");
+    showToast(`Relance envoyée à ${target.prospect}`, "success");
+  };
+
+  const handleGenerateDevis = async (demandeId: string) => {
+    const target = demandes.find(d => d.id === demandeId);
+    if (!target) return;
+    setGeneratingDevisId(demandeId);
+    try {
+      const conversation = target.messages.map(m => `${m.role}: ${m.text}`).join("\n");
+      const result = await createDevisRequest({
+        id: target.id,
+        prospect: target.prospect,
+        email: target.email,
+        tel: target.tel,
+        depart: target.depart,
+        destination: target.destination,
+        passagers: target.passagers,
+        tripDate: target.tripDate,
+        vehicule: target.vehicule,
+        message: conversation,
+      });
+
+      const { tarifMin, tarifMax } =
+        typeof result.tarifMin === "number" && typeof result.tarifMax === "number"
+          ? { tarifMin: result.tarifMin, tarifMax: result.tarifMax }
+          : estimateTarif(target.passagers);
+
+      updateDemande(demandeId, {
+        statut: "Devis envoyé",
+        tarifMin,
+        tarifMax,
+        distanceKm: typeof result.distanceKm === "number" ? result.distanceKm : target.distanceKm,
+      });
+      addHistoryMessage(demandeId, "Devis généré et envoyé au prospect.");
+      showToast(`Devis généré pour ${target.prospect}`, "success");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Échec de la génération du devis.", "error");
+    } finally {
+      setGeneratingDevisId(null);
+    }
+  };
+
+  const handleExport = (demandeId: string) => {
+    const target = demandes.find(d => d.id === demandeId);
+    if (!target) return;
+    downloadTextFile(`neotravel-demande-${target.id}.csv`, buildDemandeCsv(target), "text/csv;charset=utf-8;");
+    showToast("Export téléchargé.", "success");
   };
 
   const submitNewDemande = async (input: NewDemandeInput) => {
@@ -231,27 +375,18 @@ export default function Home() {
     const id = `NT-2026-${String(demandeCounter.current++).padStart(4, "0")}`;
     const passagers = input.passagers ? parseInt(input.passagers, 10) || 0 : 0;
 
-    const res = await fetch("/api/devis", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        id,
-        prospect: input.prospect,
-        email: input.email,
-        tel: input.tel,
-        depart: input.depart,
-        destination: input.destination,
-        passagers,
-        tripDate: input.tripDate,
-        vehicule: input.vehicule,
-        message: input.message,
-      }),
+    await createDevisRequest({
+      id,
+      prospect: input.prospect,
+      email: input.email,
+      tel: input.tel,
+      depart: input.depart,
+      destination: input.destination,
+      passagers,
+      tripDate: input.tripDate,
+      vehicule: input.vehicule,
+      message: input.message,
     });
-
-    if (!res.ok) {
-      const data = await res.json().catch(() => null);
-      throw new Error(data?.error || "Échec de l'envoi de la demande.");
-    }
 
     setDemandes(list => [
       {
@@ -273,6 +408,7 @@ export default function Home() {
       ...list,
     ]);
     setAgentNotifications(n => n + 1);
+    selectDemande(id);
   };
 
   if (screen === "landing") {
@@ -296,12 +432,32 @@ export default function Home() {
           now={now}
           onNewDemande={() => setShowNewDemande(true)}
         />
-        {screen === "dashboard" && <Dashboard setScreen={goScreen} demandes={demandes} now={now} />}
-        {screen === "demandes" && <Demandes demandes={demandes} now={now} />}
+        {screen === "dashboard" && (
+          <Dashboard
+            setScreen={goScreen}
+            demandes={demandes}
+            now={now}
+            selectDemande={selectDemande}
+            handleRelance={handleRelance}
+          />
+        )}
+        {screen === "demandes" && (
+          <Demandes
+            demandes={demandes}
+            now={now}
+            selectDemande={selectDemande}
+            getSelectedDemande={getSelectedDemande}
+            handleRelance={handleRelance}
+            handleGenerateDevis={handleGenerateDevis}
+            handleExport={handleExport}
+            generatingDevisId={generatingDevisId}
+          />
+        )}
       </main>
       {showNewDemande && (
         <NewDemandeModal onClose={() => setShowNewDemande(false)} onSubmit={submitNewDemande} />
       )}
+      {toast && <div className={`nt-toast ${toast.type}`} role="status">{toast.text}</div>}
     </div>
   );
 }
@@ -365,8 +521,7 @@ function Landing({
 
   const priceMsg = () => {
     const pax = parseInt(tripInfo.current.passagers ?? "", 10) || 30;
-    const low = 1200 + pax * 14;
-    const high = Math.round(low * 1.32);
+    const { tarifMin: low, tarifMax: high } = estimateTarif(pax);
     const fmt = (n: number) => n.toLocaleString("fr-FR");
     if (activeDemandeId.current) updateDemandeTarif(activeDemandeId.current, low, high);
     return `D'après les éléments fournis, le tarif indicatif se situe entre ${fmt(low)} € et ${fmt(high)} € TTC, chauffeur et carburant inclus. Tarif indicatif — la distance exacte sera confirmée avant l'envoi du devis définitif.`;
@@ -1088,9 +1243,30 @@ function NewDemandeModal({
   );
 }
 
-function Dashboard({ setScreen, demandes, now }: { setScreen: (s: Screen) => void; demandes: Demande[]; now: Date }) {
-  const devisEnvoyesCount = demandes.filter(d => d.statut === "Devis envoyé").length;
-  const convRate = demandes.length ? Math.round((devisEnvoyesCount / demandes.length) * 100) : 0;
+function Dashboard({
+  setScreen,
+  demandes,
+  now,
+  selectDemande,
+  handleRelance,
+}: {
+  setScreen: (s: Screen) => void;
+  demandes: Demande[];
+  now: Date;
+  selectDemande: (demandeId: string) => void;
+  handleRelance: (demandeId: string) => void;
+}) {
+  const totalDemandes = demandes.length;
+  const demandesNouvelles = demandes.filter(d => d.statut === "Nouveau").length;
+  const demandesEnCours = demandes.filter(d => d.statut === "En cours").length;
+  const devisEnvoyes = demandes.filter(d => d.statut === "Devis envoyé").length;
+  const demandesEnAttente = demandes.filter(d => d.statut === "En attente").length;
+  const demandesAcceptees = demandes.filter(d => d.statut === "Accepté").length;
+  const chiffreAffairesEstime = demandes.reduce((sum, d) => sum + d.tarifMax, 0);
+  const tauxConversion = totalDemandes
+    ? Math.round(((devisEnvoyes + demandesAcceptees) / totalDemandes) * 100)
+    : 0;
+
   const priced = demandes.filter(d => d.tarifMax > 0);
   const tarifMoyen = priced.length
     ? Math.round(priced.reduce((sum, d) => sum + (d.tarifMin + d.tarifMax) / 2, 0) / priced.length)
@@ -1099,15 +1275,15 @@ function Dashboard({ setScreen, demandes, now }: { setScreen: (s: Screen) => voi
   const tarifMax = priced.length ? Math.max(...priced.map(d => d.tarifMax)) : 0;
 
   const stats = [
-    { label: "Demandes reçues", value: String(demandes.length), caption: "+2 vs sem. passée", icon: <IcoChatBubble />, tone: "blue" },
-    { label: "Devis envoyés", value: String(devisEnvoyesCount), caption: "+1 ce mois", icon: <IcoSend2 />, tone: "indigo" },
-    { label: "Taux de conversion", value: `${convRate} %`, caption: "Stable", icon: <IcoCheckCircle2 />, tone: "green" },
-    { label: "Tarif moyen / demande", value: `${tarifMoyen.toLocaleString("fr-FR")} €`, caption: "+14 % vs mois dernier", icon: <IcoCoins />, tone: "orange" },
+    { label: "Demandes reçues", value: String(totalDemandes), caption: `${demandesNouvelles} nouvelle${demandesNouvelles === 1 ? "" : "s"}`, icon: <IcoChatBubble />, tone: "blue" },
+    { label: "Devis envoyés", value: String(devisEnvoyes), caption: `${demandesEnCours} en cours`, icon: <IcoSend2 />, tone: "indigo" },
+    { label: "Taux de conversion", value: `${tauxConversion} %`, caption: `${demandesEnAttente} en attente`, icon: <IcoCheckCircle2 />, tone: "green" },
+    { label: "Chiffre d'affaires estimé", value: `${chiffreAffairesEstime.toLocaleString("fr-FR")} €`, caption: `Tarif moyen ${tarifMoyen.toLocaleString("fr-FR")} €`, icon: <IcoCoins />, tone: "orange" },
   ];
 
-  const activities = [...demandes].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, 4);
+  const activities = [...demandes].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, 5);
 
-  const pipelineColors: Record<DemandeStatus, string> = {
+  const pipelineColors: Partial<Record<DemandeStatus, string>> = {
     "Nouveau": "#dbeafe",
     "En cours": "#bfdbfe",
     "Devis envoyé": "#ddf4ff",
@@ -1119,7 +1295,12 @@ function Dashboard({ setScreen, demandes, now }: { setScreen: (s: Screen) => voi
     color: pipelineColors[label],
   }));
 
-  const followups = demandes.filter(d => d.statut === "Nouveau" || d.statut === "En attente").slice(0, 2);
+  const followups = demandes.filter(d => d.statut === "En attente" || d.statut === "En relance").slice(0, 2);
+
+  const goToDemande = (demandeId: string) => {
+    selectDemande(demandeId);
+    setScreen("demandes");
+  };
 
   return (
     <section className="operator-content dashboard-page">
@@ -1147,7 +1328,7 @@ function Dashboard({ setScreen, demandes, now }: { setScreen: (s: Screen) => voi
           </div>
           <div className="activity-list">
             {activities.map(item => (
-              <button key={item.id} type="button" className="activity-item">
+              <button key={item.id} type="button" className="activity-item" onClick={() => goToDemande(item.id)}>
                 <div className="activity-avatar">{initials(item.prospect)}</div>
                 <div className="activity-info">
                   <div className="activity-top">
@@ -1191,7 +1372,7 @@ function Dashboard({ setScreen, demandes, now }: { setScreen: (s: Screen) => voi
               <div className="tariff-meta">
                 <span>Min {tarifMin.toLocaleString("fr-FR")} €</span>
                 <span>Max {tarifMax.toLocaleString("fr-FR")} €</span>
-                <span>Conv. {convRate} %</span>
+                <span>Conv. {tauxConversion} %</span>
               </div>
             </div>
           </section>
@@ -1204,29 +1385,23 @@ function Dashboard({ setScreen, demandes, now }: { setScreen: (s: Screen) => voi
               </div>
             </div>
             {followups.map(item => (
-  <div
-    key={item.id}
-    className="followup-item"
-    onClick={() => {
-      // action quand on clique sur la ligne
-    }}
-  >
-    <div>
-      <strong>{item.prospect}</strong>
-      <span>{item.depart} → {item.destination}</span>
-  </div>
-
-    <button
-      className="table-btn lime"
-      onClick={(e) => {
-        e.stopPropagation();
-        // action du bouton Relancer
-      }}
-    >
-      Relancer
-    </button>
-  </div>
-))}
+              <div key={item.id} className="followup-item" onClick={() => goToDemande(item.id)}>
+                <div>
+                  <strong>{item.prospect}</strong>
+                  <span>{item.depart} → {item.destination}</span>
+                </div>
+                <button
+                  type="button"
+                  className="table-btn lime"
+                  onClick={e => {
+                    e.stopPropagation();
+                    handleRelance(item.id);
+                  }}
+                >
+                  Relancer
+                </button>
+              </div>
+            ))}
           </section>
         </div>
       </div>
@@ -1236,10 +1411,27 @@ function Dashboard({ setScreen, demandes, now }: { setScreen: (s: Screen) => voi
 
 type TabKey = "all" | DemandeStatus;
 
-function Demandes({ demandes, now }: { demandes: Demande[]; now: Date }) {
+function Demandes({
+  demandes,
+  now,
+  selectDemande,
+  getSelectedDemande,
+  handleRelance,
+  handleGenerateDevis,
+  handleExport,
+  generatingDevisId,
+}: {
+  demandes: Demande[];
+  now: Date;
+  selectDemande: (demandeId: string) => void;
+  getSelectedDemande: () => Demande | undefined;
+  handleRelance: (demandeId: string) => void;
+  handleGenerateDevis: (demandeId: string) => void;
+  handleExport: (demandeId: string) => void;
+  generatingDevisId: string | null;
+}) {
   const [activeTab, setActiveTab] = useState<TabKey>("all");
   const [search, setSearch] = useState("");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const tabs: { key: TabKey; label: string; count: number }[] = [
     { key: "all", label: "Toutes", count: demandes.length },
@@ -1256,7 +1448,8 @@ function Demandes({ demandes, now }: { demandes: Demande[]; now: Date }) {
     return matchesTab && matchesSearch;
   });
 
-  const selected = filtered.find(item => item.id === selectedId) ?? filtered[0] ?? demandes[0];
+  const globalSelected = getSelectedDemande();
+  const selected = filtered.find(item => item.id === globalSelected?.id) ?? filtered[0] ?? demandes[0];
 
   if (!selected) {
     return (
@@ -1304,7 +1497,7 @@ function Demandes({ demandes, now }: { demandes: Demande[]; now: Date }) {
                 key={item.id}
                 type="button"
                 className={`demande-item ${item.id === selected.id ? "active" : ""}`}
-                onClick={() => setSelectedId(item.id)}
+                onClick={() => selectDemande(item.id)}
               >
                 <div className="demande-avatar">{initials(item.prospect)}</div>
                 <div>
@@ -1329,9 +1522,20 @@ function Demandes({ demandes, now }: { demandes: Demande[]; now: Date }) {
                 <span className={`badge ${statusBadgeClass(selected.statut)}`}>{selected.statut}</span>
               </div>
               <div className="detail-actions">
-                <button className="table-btn dark"><IcoRefresh />Relancer</button>
-                <button className="table-btn lime"><IcoFile />Générer le devis</button>
-                <button className="table-btn"><IcoExport />Exporter</button>
+                <button type="button" className="table-btn dark" onClick={() => handleRelance(selected.id)}>
+                  <IcoRefresh />Relancer
+                </button>
+                <button
+                  type="button"
+                  className="table-btn lime"
+                  onClick={() => handleGenerateDevis(selected.id)}
+                  disabled={generatingDevisId === selected.id}
+                >
+                  <IcoFile />Générer le devis
+                </button>
+                <button type="button" className="table-btn" onClick={() => handleExport(selected.id)}>
+                  <IcoExport />Exporter
+                </button>
               </div>
             </div>
             <h2>{selected.prospect}</h2>
@@ -1345,6 +1549,7 @@ function Demandes({ demandes, now }: { demandes: Demande[]; now: Date }) {
                 <div className="client-info-row"><span>Passagers</span><strong>{selected.passagers ? `${selected.passagers} personnes` : "—"}</strong></div>
                 <div className="client-info-row"><span>Date</span><strong>{selected.tripDate}</strong></div>
                 <div className="client-info-row"><span>Véhicule</span><strong>{selected.vehicule}</strong></div>
+                <div className="client-info-row"><span>Distance</span><strong>{selected.distanceKm != null ? formatDistance(selected.distanceKm) : "—"}</strong></div>
               </section>
 
               <section className="panel tariff-panel">

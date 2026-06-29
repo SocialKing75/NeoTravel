@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { calculateDistanceKm, formatDistance } from "@/utils/distanceCalculator";
 
 export const runtime = "nodejs";
 
@@ -15,30 +16,27 @@ type DevisRequest = {
   message?: string;
 };
 
+const PRIX_KM = 3.2;
+const TVA = 1.1;
+
 function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
-export async function POST(req: Request) {
+function getCoefficientPassagers(passagers: number) {
+  if (passagers <= 8) return 0.9;
+  if (passagers <= 30) return 1;
+  if (passagers <= 55) return 1.25;
+  return 1.5;
+}
+
+// Notification best-effort vers n8n/Airtable : ne doit jamais bloquer le calcul de tarif local,
+// qui doit rester disponible (MVP de soutenance) même sans webhook configuré.
+async function notifyN8n(body: DevisRequest) {
   const url = process.env.N8N_DEVIS_WEBHOOK_URL || process.env.N8N_WEBHOOK_URL;
   if (!url) {
-    return NextResponse.json(
-      { error: "N8N_DEVIS_WEBHOOK_URL n'est pas configuré." },
-      { status: 500 },
-    );
-  }
-
-  let body: DevisRequest;
-  try {
-    const raw = await req.json();
-    if (!isObject(raw)) throw new Error("invalid");
-    body = raw as DevisRequest;
-  } catch {
-    return NextResponse.json({ error: "Corps JSON invalide." }, { status: 400 });
-  }
-
-  if (!body.prospect?.trim() || !body.email?.trim() || !body.depart?.trim() || !body.destination?.trim()) {
-    return NextResponse.json({ error: "Champs requis manquants." }, { status: 400 });
+    console.warn("N8N_DEVIS_WEBHOOK_URL n'est pas configuré : notification ignorée.");
+    return;
   }
 
   try {
@@ -70,15 +68,46 @@ export async function POST(req: Request) {
     clearTimeout(timeout);
 
     if (!res.ok) {
-      return NextResponse.json({ error: `n8n a répondu ${res.status}.` }, { status: 502 });
+      console.error(`n8n a répondu ${res.status} pour la demande ${body.id}.`);
     }
-
-    return NextResponse.json({ ok: true });
   } catch (err) {
-    const aborted = err instanceof Error && err.name === "AbortError";
-    return NextResponse.json(
-      { error: aborted ? "Délai dépassé côté n8n." : "Échec de l'appel n8n." },
-      { status: 504 },
-    );
+    console.error("Échec de la notification n8n :", err);
   }
+}
+
+export async function POST(req: Request) {
+  let body: DevisRequest;
+  try {
+    const raw = await req.json();
+    if (!isObject(raw)) throw new Error("invalid");
+    body = raw as DevisRequest;
+  } catch {
+    return NextResponse.json({ error: "Corps JSON invalide." }, { status: 400 });
+  }
+
+  if (!body.prospect?.trim() || !body.email?.trim() || !body.depart?.trim() || !body.destination?.trim()) {
+    return NextResponse.json({ error: "Champs requis manquants." }, { status: 400 });
+  }
+
+  const distanceKm = calculateDistanceKm(body.depart, body.destination);
+  const passagers = typeof body.passagers === "number" && body.passagers > 0 ? body.passagers : 1;
+
+  const base = distanceKm * PRIX_KM;
+  const coefficientPassagers = getCoefficientPassagers(passagers);
+  const totalHT = Math.round(base * coefficientPassagers);
+  const totalTTC = Math.round(totalHT * TVA);
+  const tarifMin = Math.round(totalTTC * 0.9);
+  const tarifMax = Math.round(totalTTC * 1.1);
+
+  await notifyN8n(body);
+
+  return NextResponse.json({
+    success: true,
+    distanceKm,
+    tarifMin,
+    tarifMax,
+    totalHT,
+    totalTTC,
+    message: `Trajet ${body.depart} → ${body.destination} : ${formatDistance(distanceKm)}, tarif indicatif ${tarifMin} € - ${tarifMax} € TTC.`,
+  });
 }
