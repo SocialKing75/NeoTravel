@@ -2813,6 +2813,7 @@ a { color: inherit; text-decoration: none; }
 .nt-hero-text .privacy-note a { color: var(--nt-text); }
 
 .rgpd-consent {
+  display: block;
   margin-top: 4px;
   font-size: 13px;
   line-height: 1.55;
