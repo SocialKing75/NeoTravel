@@ -14,39 +14,52 @@ HEADERS = {
     "Content-Type": "application/json"
 }
 
+FALLBACK_GRID = {50: 480, 100: 680, 150: 890, 180: 1050}
+FALLBACK_SAISON = {"Haute": 0.10, "Moyenne": 0.0, "Basse": -0.05}
+
 async def fetch_pricing_grid():
-    """Va chercher la grille des tarifs forfaitaires sur Airtable"""
+    """Va chercher la grille des tarifs forfaitaires sur Airtable, avec fallback local."""
+    if not AIRTABLE_API_KEY or not AIRTABLE_BASE_ID:
+        return FALLBACK_GRID
     url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/Grille_Forfaits"
-    async with httpx.AsyncClient() as client:
-        response = await client.get(url, headers=HEADERS)
-        if response.status_code != 200:
-            raise Exception(f"Erreur Airtable (Grille): {response.status_code} - {response.text}")
-        data = response.json()
-        grid = {}
-        for record in data.get("records", []):
-            fields = record.get("fields", {})
-            km = fields.get("Palier_KM")
-            tarif = fields.get("Tarfi_base_Euros")  # Conserve la faute de frappe Airtable pour ne pas casser la liaison
-            if km is not None and tarif is not None:
-                grid[int(km)] = float(tarif)
-        return grid
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            response = await client.get(url, headers=HEADERS)
+            if response.status_code != 200:
+                return FALLBACK_GRID
+            data = response.json()
+            grid = {}
+            for record in data.get("records", []):
+                fields = record.get("fields", {})
+                km = fields.get("Palier_KM")
+                tarif = fields.get("Tarfi_base_Euros")  # Conserve la faute de frappe Airtable
+                if km is not None and tarif is not None:
+                    grid[int(km)] = float(tarif)
+            return grid if grid else FALLBACK_GRID
+    except Exception:
+        return FALLBACK_GRID
 
 async def fetch_seasonal_coefficients():
-    """Va chercher les coefficients d'ajustement des saisons sur Airtable"""
+    """Va chercher les coefficients d'ajustement des saisons sur Airtable, avec fallback local."""
+    if not AIRTABLE_API_KEY or not AIRTABLE_BASE_ID:
+        return FALLBACK_SAISON
     url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/Coefficients_Saison"
-    async with httpx.AsyncClient() as client:
-        response = await client.get(url, headers=HEADERS)
-        if response.status_code != 200:
-            raise Exception(f"Erreur Airtable (Saisons): {response.status_code} - {response.text}")
-        data = response.json()
-        coefficients = {}
-        for record in data.get("records", []):
-            fields = record.get("fields", {})
-            saison = fields.get("Saison")
-            ajustement = fields.get("Ajustement")
-            if saison is not None and ajustement is not None:
-                coefficients[saison] = float(ajustement)
-        return coefficients
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            response = await client.get(url, headers=HEADERS)
+            if response.status_code != 200:
+                return FALLBACK_SAISON
+            data = response.json()
+            coefficients = {}
+            for record in data.get("records", []):
+                fields = record.get("fields", {})
+                saison = fields.get("Saison")
+                ajustement = fields.get("Ajustement")
+                if saison is not None and ajustement is not None:
+                    coefficients[saison] = float(ajustement)
+            return coefficients if coefficients else FALLBACK_SAISON
+    except Exception:
+        return FALLBACK_SAISON
 
 def get_anticipation_coef(days_to_departure: int) -> float:
     """Retourne le coefficient selon le délai d'anticipation"""

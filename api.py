@@ -34,6 +34,14 @@ class DevisResponse(BaseModel):
     details_coefficients: dict
 
 
+class DevisDistanceRequest(BaseModel):
+    distance_km: int = Field(..., ge=1, example=450)
+    aller_retour: bool = Field(..., example=False)
+    saison: str = Field(..., example="Haute")
+    days_to_departure: int = Field(..., ge=0, example=30)
+    capacity: int = Field(..., ge=1, le=85, example=45)
+
+
 async def geocode(ville: str) -> tuple[float, float]:
     url = "https://nominatim.openstreetmap.org/search"
     async with httpx.AsyncClient(timeout=10) as client:
@@ -73,6 +81,24 @@ def get_saison(d: date) -> str:
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.post("/calculer-devis")
+async def calculer_devis_distance(req: DevisDistanceRequest):
+    """Route utilisée par le nœud n8n calculerDevis (distance déjà calculée via Nominatim+OSRM)."""
+    if req.capacity > 85:
+        raise HTTPException(
+            status_code=422,
+            detail="Capacité > 85 passagers : flux manuel requis, contactez un chargé d'affaires."
+        )
+    result = await calculate_price(
+        distance_km=req.distance_km,
+        aller_retour=req.aller_retour,
+        saison=req.saison,
+        days_to_departure=req.days_to_departure,
+        capacity=req.capacity,
+    )
+    return {"status": "success", "data": result}
 
 
 @app.post("/calculer", response_model=DevisResponse)

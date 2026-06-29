@@ -444,16 +444,19 @@ function Landing({
   updateDemandeTarif: (id: string, min: number, max: number) => void;
 }) {
   const [chatActive, setChatActive] = useState(false);
+  const [showInfoForm, setShowInfoForm] = useState(false);
+  const [userFirstName, setUserFirstName] = useState("");
+  const [userEmail, setUserEmail] = useState("");
+  const [emailError, setEmailError] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
-  const [attachedFileName, setAttachedFileName] = useState("");
   const [agentTyping, setAgentTyping] = useState(false);
   const [agentStage, setAgentStage] = useState(0);
   const [honeypot, setHoneypot] = useState("");
   const [rgpdConsent, setRgpdConsent] = useState(false);
-  const formTs = useRef<number>(Date.now());
-  const sessionId = useRef<string>(crypto.randomUUID());
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [consentShake, setConsentShake] = useState(false);
+  const [formTs] = useState(() => Date.now());
+  const [sessionId] = useState(() => crypto.randomUUID());
   const formRef = useRef<HTMLDivElement>(null);
   const consentRef = useRef<HTMLDivElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -478,7 +481,7 @@ function Landing({
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, sessionId: sessionId.current, honeypot, formTs: formTs.current }),
+        body: JSON.stringify({ message, sessionId, honeypot, formTs }),
       });
       const data = await res.json();
       if (res.ok && data.reply && String(data.reply).trim()) return String(data.reply);
@@ -508,12 +511,25 @@ function Landing({
 
   const openChat = () => {
     if (!rgpdConsent) {
+      setConsentShake(true);
+      setTimeout(() => setConsentShake(false), 600);
       if (consentRef.current) {
         const y = consentRef.current.getBoundingClientRect().top + window.scrollY - 120;
         window.scrollTo({ top: y, behavior: "smooth" });
       }
       return;
     }
+    setShowInfoForm(true);
+  };
+
+  const startChat = () => {
+    const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(userEmail.trim());
+    if (!userFirstName.trim() || !emailOk) {
+      setEmailError(!emailOk);
+      return;
+    }
+    setEmailError(false);
+    setShowInfoForm(false);
 
     const query = chatInput.trim();
     setChatActive(true);
@@ -534,7 +550,7 @@ function Landing({
     const trip = parsed.depart && parsed.destination ? `${parsed.depart} → ${parsed.destination}` : "votre trajet";
     const pax = parsed.passagers ? `${parsed.passagers} passagers` : "votre groupe";
     timer.current = setTimeout(() => {
-      addMsg("agent", `Bonjour, je suis l'agent Neotravel. J'ai bien noté votre trajet ${trip} pour ${pax}. Pour affiner le devis, souhaitez-vous un aller simple ou un aller-retour ?`);
+      addMsg("agent", `Bonjour ${userFirstName} ! Je suis l'agent Neotravel. J'ai bien noté votre trajet ${trip} pour ${pax}. Pour affiner le devis, souhaitez-vous un aller simple ou un aller-retour ?`);
       setAgentTyping(false);
     }, 850);
   };
@@ -561,18 +577,13 @@ function Landing({
 
   const sendChat = async () => {
     const text = chatInput.trim();
-    if (!text && !attachedFileName) return;
+    if (!text) return;
 
-    const fileIndicator = attachedFileName ? `[Pièce jointe : ${attachedFileName}]` : "";
-    const messageText = text ? `${text}${fileIndicator ? " " + fileIndicator : ""}` : fileIndicator;
-    const queryText = text || "J'ai bien reçu votre fichier, je vais l'analyser.";
-
-    addMsg("user", messageText);
+    addMsg("user", text);
     setChatInput("");
-    setAttachedFileName("");
 
     setAgentTyping(true);
-    const reply = await callAgent(queryText);
+    const reply = await callAgent(text);
     setAgentTyping(false);
 
     if (reply) {
@@ -580,15 +591,6 @@ function Landing({
     } else {
       respond(queryText);
     }
-  };
-
-  const handleAttachClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    setAttachedFileName(file ? file.name : "");
   };
 
   const chatTags = [
@@ -630,14 +632,13 @@ function Landing({
             <a href="#">Blog</a>
           </nav>
           <div className="nt-header-actions">
-            <button className="nt-btn-outline nt-header-agent" onClick={() => setScreen("dashboard")}>Espace agent</button>
+            <button className="nt-header-agent" onClick={() => setScreen("dashboard")}>Espace agent</button>
             <a className="nt-phone-btn" href="tel:0980400484">09 80 40 04 84</a>
           </div>
         </div>
       </header>
 
       <section className="nt-hero nt-hero-home">
-        <input ref={fileInputRef} type="file" className="nt-hidden-file-input" onChange={handleFileChange} />
         <div className="nt-hero-photo" />
         <div className="nt-hero-overlay-1" />
         <div className="nt-hero-overlay-2" />
@@ -669,7 +670,6 @@ function Landing({
                   {messages.map((m, i) => (
                     <div key={i} className={`nt-chat-message ${m.role}`}>
                       <p>{m.text}</p>
-                      <span className="nt-chat-timestamp">{formatTime(m.sentAt)}</span>
                     </div>
                   ))}
                   {agentTyping && (
@@ -698,24 +698,6 @@ function Landing({
                   ))}
                 </div>
                 <div className="nt-chat-input">
-                  <div className="nt-chat-controls">
-                    <div className="nt-chat-icons">
-                      <button type="button" className="nt-chat-icon-btn" aria-label="Joindre un fichier" onClick={handleAttachClick}>
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M18.5 6.5 9.71 15.29a3.5 3.5 0 1 1-4.95-4.95l8.79-8.79a5.5 5.5 0 0 1 7.78 7.78l-8.8 8.8a4 4 0 1 1-5.66-5.66L16.5 4.84" />
-                        </svg>
-                      </button>
-                      <button type="button" className="nt-chat-icon-btn" aria-label="Activer la voix">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M12 1.5a3.5 3.5 0 0 1 3.5 3.5v5a3.5 3.5 0 0 1-7 0v-5A3.5 3.5 0 0 1 12 1.5Z" />
-                          <path d="M8.5 12a3.5 3.5 0 0 0 7 0" />
-                          <path d="M12 19.5v3" />
-                          <path d="M8 22.5h8" />
-                        </svg>
-                      </button>
-                    </div>
-                    {attachedFileName && <span className="nt-chat-file-name">{attachedFileName}</span>}
-                  </div>
                   <input
                     type="text"
                     value={chatInput}
@@ -732,7 +714,40 @@ function Landing({
               </div>
             )}
 
-            {!chatActive && (
+            {!chatActive && showInfoForm && (
+              <div className="nt-search-card nt-info-form">
+                <p className="nt-info-form-title">Avant de commencer</p>
+                <div className="nt-info-form-row">
+                  <div className="nt-info-form-group">
+                    <label>Prénom *</label>
+                    <input
+                      autoFocus
+                      value={userFirstName}
+                      onChange={e => setUserFirstName(e.target.value)}
+                      onKeyDown={e => { if (e.key === "Enter") startChat(); }}
+                      placeholder="Camille"
+                    />
+                  </div>
+                  <div className="nt-info-form-group">
+                    <label>Adresse email *</label>
+                    <input
+                      type="email"
+                      value={userEmail}
+                      onChange={e => { setUserEmail(e.target.value); setEmailError(false); }}
+                      onKeyDown={e => { if (e.key === "Enter") startChat(); }}
+                      placeholder="vous@exemple.fr"
+                      className={emailError ? "nt-input-error" : ""}
+                    />
+                    {emailError && <span className="nt-field-error">Email invalide</span>}
+                  </div>
+                </div>
+                <button className="nt-info-submit" onClick={startChat}>
+                  Démarrer la conversation
+                </button>
+              </div>
+            )}
+
+            {!chatActive && !showInfoForm && (
               <div className="nt-search-card">
                 <input
                   tabIndex={-1}
@@ -750,34 +765,19 @@ function Landing({
                     onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); openChat(); } }}
                     placeholder="Décrivez votre trajet... ex : Paris → Lyon, 45 personnes, 15 juillet"
                   />
-                  <button className="nt-search-attach" aria-label="Joindre un fichier" onClick={handleAttachClick}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M21.44 11.05 12.95 19.5a5.5 5.5 0 0 1-7.78 0 5.5 5.5 0 0 1 0-7.78l7.07-7.07a3.5 3.5 0 1 1 4.95 4.95L11.5 18.5" />
-                      <path d="M18 6.5 19.5 5" />
-                    </svg>
-                  </button>
-                  <button className="nt-search-voice" aria-label="Activer la voix">
-                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M12 1.5a3.5 3.5 0 0 1 3.5 3.5v5a3.5 3.5 0 0 1-7 0v-5A3.5 3.5 0 0 1 12 1.5Z" />
-                      <path d="M8.5 12a3.5 3.5 0 0 0 7 0" />
-                      <path d="M12 19.5v3" />
-                      <path d="M8 22.5h8" />
-                    </svg>
-                  </button>
                   <button className="nt-search-go" onClick={openChat} aria-label="Lancer l'agent IA" disabled={!rgpdConsent}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0E1C2B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M5 12h14" />
                       <path d="m13 6 6 6-6 6" />
                     </svg>
                   </button>
-                  {attachedFileName && <span className="nt-chat-file-name">{attachedFileName}</span>}
                 </div>
                 <div className="nt-search-tags">
                   {['Paris → Lyon, 45 pers.', 'Devis pour un séminaire', 'Navette aéroport', 'Voyage scolaire'].map(tag => (
                     <button key={tag} type="button" onClick={() => setChatInput(tag)}>{tag}</button>
                   ))}
                 </div>
-                <div ref={consentRef} className="rgpd-consent">
+                <div ref={consentRef} className={`rgpd-consent${consentShake ? " rgpd-shake" : ""}`}>
                   <label>
                     <input
                       type="checkbox"
@@ -1040,7 +1040,7 @@ const IcoLogout = () => <OpIcon size={15}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0
 const IcoRefresh = () => <OpIcon size={16}><path d="M3 12a9 9 0 0 1 15-6.7L21 8" /><path d="M21 4v4h-4" /><path d="M21 12a9 9 0 0 1-15 6.7L3 16" /><path d="M3 20v-4h4" /></OpIcon>;
 const IcoFile = () => <OpIcon size={16}><path d="M7 3h7l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" /><path d="M9 13h6M9 17h4" /></OpIcon>;
 const IcoExport = () => <OpIcon size={16}><path d="M12 3v12" /><path d="m7 8 5-5 5 5" /><path d="M5 21h14" /></OpIcon>;
-const IcoChatBubble = () => <OpIcon><path d="M21 11.5a8.5 8.5 0 1 1-4.07 7.13L3 20l1.4-3.93A8.5 8.5 0 0 1 21 11.5Z" /></OpIcon>;
+const IcoChatBubble = () => <OpIcon><path d="M4 4h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H7l-4 4V5a1 1 0 0 1 1-1z" /><path d="M8 10h8M8 7h5" /></OpIcon>;
 const IcoSend2 = () => <OpIcon><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></OpIcon>;
 const IcoCheckCircle2 = () => <OpIcon><circle cx="12" cy="12" r="9" /><path d="m8.5 12.5 2.5 2.5 5-5.5" /></OpIcon>;
 const IcoCoins = () => <OpIcon><circle cx="9" cy="9" r="5.5" /><path d="M14.5 9c2.5 0 4.5 2 4.5 4.5S17 18 14.5 18 10 16 10 13.5" /></OpIcon>;
@@ -1076,7 +1076,7 @@ function Sidebar({ screen, setScreen, demandesCount }: { screen: Screen; setScre
           <strong>Agent Commercial</strong>
           <span>agent@neotravel.fr</span>
         </section>
-        <button type="button" className="sidebar-logout" aria-label="Se déconnecter">
+        <button type="button" className="sidebar-logout" aria-label="Se déconnecter" onClick={() => setScreen("landing")}>
           <IcoLogout />
         </button>
       </div>
@@ -1491,7 +1491,7 @@ function Demandes({
           <div className="demandes-header">
             <div>
               <h2>Demandes</h2>
-              <p>Toutes les demandes de devis reçues via le chatbot</p>
+              <p>{filtered.length} résultat{filtered.length !== 1 ? "s" : ""}</p>
             </div>
             <span className="badge lime">{demandes.length}</span>
           </div>

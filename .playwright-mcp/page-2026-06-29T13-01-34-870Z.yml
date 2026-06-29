@@ -1,0 +1,126 @@
+- generic [active] [ref=e1]:
+  - button "Open Next.js Dev Tools" [ref=e247] [cursor=pointer]:
+    - img [ref=e248]
+  - alert [ref=e251]
+  - main [ref=e261]:
+    - generic [ref=e262]:
+      - generic [ref=e263]:
+        - heading "Tableau de bord" [level=1] [ref=e264]
+        - paragraph [ref=e265]: Vue d'ensemble de l'activité commerciale
+      - generic [ref=e266]:
+        - button "Notifications" [ref=e267] [cursor=pointer]:
+          - img [ref=e268]
+        - generic [ref=e271]: 29 juin 2026
+        - button "Nouvelle demande" [ref=e272] [cursor=pointer]:
+          - img [ref=e273]
+          - text: Nouvelle demande
+    - generic [ref=e275]:
+      - generic [ref=e276]:
+        - generic [ref=e277]:
+          - img [ref=e279]
+          - generic [ref=e281]:
+            - generic [ref=e282]: Demandes reçues
+            - strong [ref=e283]: "4"
+            - paragraph [ref=e284]: 1 nouvelle
+        - generic [ref=e285]:
+          - img [ref=e287]
+          - generic [ref=e290]:
+            - generic [ref=e291]: Devis envoyés
+            - strong [ref=e292]: "1"
+            - paragraph [ref=e293]: 1 en cours
+        - generic [ref=e294]:
+          - img [ref=e296]
+          - generic [ref=e299]:
+            - generic [ref=e300]: Taux de conversion
+            - strong [ref=e301]: 25 %
+            - paragraph [ref=e302]: 1 en attente
+        - generic [ref=e303]:
+          - img [ref=e305]
+          - generic [ref=e308]:
+            - generic [ref=e309]: Chiffre d'affaires estimé
+            - strong [ref=e310]: 7 036 €
+            - paragraph [ref=e311]: Tarif moyen 1 546 €
+      - generic [ref=e312]:
+        - generic [ref=e313]:
+          - generic [ref=e314]:
+            - generic [ref=e315]:
+              - heading "Activité récente" [level=2] [ref=e316]
+              - paragraph [ref=e317]: Demandes clients récentes à traiter
+            - button "Voir toutes" [ref=e318] [cursor=pointer]
+          - generic [ref=e319]:
+            - button "CR Camille Roux Auj. 09:14 NT-2026-0041 Paris → Lyon Bonjour, je cherche un autocar pour 45 personnes, départ Paris le 15 juillet direction Lyon pour un séminaire d'entreprise. Nouveau" [ref=e320] [cursor=pointer]:
+              - generic [ref=e321]: CR
+              - generic [ref=e322]:
+                - generic [ref=e323]:
+                  - strong [ref=e324]: Camille Roux
+                  - generic [ref=e325]: Auj. 09:14
+                - paragraph [ref=e326]: NT-2026-0041
+                - paragraph [ref=e327]: Paris → Lyon
+                - paragraph [ref=e328]: Bonjour, je cherche un autocar pour 45 personnes, départ Paris le 15 juillet direction Lyon pour un séminaire d'entreprise.
+              - generic [ref=e329]: Nouveau
+            - button "TM Thomas Mercier Hier 14:32 NT-2026-0040 Bordeaux → Paris CDG Navette aéroport pour notre équipe RH, 8 personnes, départ Bordeaux vers Paris CDG. En cours" [ref=e330] [cursor=pointer]:
+              - generic [ref=e331]: TM
+              - generic [ref=e332]:
+                - generic [ref=e333]:
+                  - strong [ref=e334]: Thomas Mercier
+                  - generic [ref=e335]: Hier 14:32
+                - paragraph [ref=e336]: NT-2026-0040
+                - paragraph [ref=e337]: Bordeaux → Paris CDG
+                - paragraph [ref=e338]: Navette aéroport pour notre équipe RH, 8 personnes, départ Bordeaux vers Paris CDG.
+              - generic [ref=e339]: En cours
+            - button "SL Sophie Laurent 26 juin NT-2026-0039 Lyon → Grenoble Sortie scolaire terminée, avis très positif ! Merci pour le service. Devis envoyé" [ref=e340] [cursor=pointer]:
+              - generic [ref=e341]: SL
+              - generic [ref=e342]:
+                - generic [ref=e343]:
+                  - strong [ref=e344]: Sophie Laurent
+                  - generic [ref=e345]: 26 juin
+                - paragraph [ref=e346]: NT-2026-0039
+                - paragraph [ref=e347]: Lyon → Grenoble
+                - paragraph [ref=e348]: Sortie scolaire terminée, avis très positif ! Merci pour le service.
+              - generic [ref=e349]: Devis envoyé
+            - button "MD Marc Duval 24 juin NT-2026-0038 Paris → Reims Événement viticole, aller-retour dans la journée, êtes-vous disponibles ? En attente" [ref=e350] [cursor=pointer]:
+              - generic [ref=e351]: MD
+              - generic [ref=e352]:
+                - generic [ref=e353]:
+                  - strong [ref=e354]: Marc Duval
+                  - generic [ref=e355]: 24 juin
+                - paragraph [ref=e356]: NT-2026-0038
+                - paragraph [ref=e357]: Paris → Reims
+                - paragraph [ref=e358]: Événement viticole, aller-retour dans la journée, êtes-vous disponibles ?
+              - generic [ref=e359]: En attente
+        - generic [ref=e360]:
+          - generic [ref=e361]:
+            - generic [ref=e363]:
+              - heading "Pipeline" [level=2] [ref=e364]
+              - paragraph [ref=e365]: Vue d’ensemble des statuts
+            - generic [ref=e366]:
+              - generic [ref=e367]:
+                - generic [ref=e368]: Nouveau
+                - strong [ref=e369]: "1"
+              - generic [ref=e371]:
+                - generic [ref=e372]: En cours
+                - strong [ref=e373]: "1"
+              - generic [ref=e375]:
+                - generic [ref=e376]: Devis envoyé
+                - strong [ref=e377]: "1"
+              - generic [ref=e379]:
+                - generic [ref=e380]: En attente
+                - strong [ref=e381]: "1"
+          - generic [ref=e384]:
+            - generic [ref=e385]: TARIF MOYEN
+            - strong [ref=e386]: 1 546 €
+            - paragraph [ref=e387]: par demande · ce mois
+            - generic [ref=e388]:
+              - generic [ref=e389]: Min 980 €
+              - generic [ref=e390]: Max 2 416 €
+              - generic [ref=e391]: Conv. 25 %
+          - generic [ref=e392]:
+            - generic [ref=e394]:
+              - heading "Relances à faire" [level=2] [ref=e395]
+              - paragraph [ref=e396]: Clients à recontacter
+            - generic [ref=e397] [cursor=pointer]:
+              - generic [ref=e398]:
+                - strong [ref=e399]: Marc Duval
+                - generic [ref=e400]: Paris → Reims
+              - button "Relancer" [ref=e401]
+      - paragraph [ref=e402]: Données confidentielles — accès réservé aux utilisateurs autorisés.

@@ -1,0 +1,196 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - img "Neotravel" [ref=e5]
+      - button "Espace agent" [ref=e7] [cursor=pointer]
+  - generic [ref=e13]:
+    - generic [ref=e16]: TRANSPORT PREMIUM AVEC CHAUFFEUR
+    - heading "Organisez votre transport de groupe en toute simplicité" [level=1] [ref=e17]:
+      - text: Organisez votre transport de groupe
+      - text: en toute simplicité
+    - paragraph [ref=e18]: Décrivez votre besoin, échangez avec notre assistant IA et recevez un devis personnalisé en quelques minutes grâce à notre réseau d’autocaristes partenaires partout en France.
+    - generic [ref=e19]:
+      - generic [ref=e20]:
+        - 'textbox "Décrivez votre trajet... ex : Paris → Lyon, 45 personnes, 15 juillet" [ref=e21]'
+        - button "Joindre un fichier" [ref=e22] [cursor=pointer]:
+          - img [ref=e23]
+        - button "Activer la voix" [ref=e26] [cursor=pointer]:
+          - img [ref=e27]
+        - button "Lancer l'agent IA" [disabled] [ref=e30] [cursor=pointer]:
+          - img [ref=e31]
+      - generic [ref=e33]:
+        - button "Paris → Lyon, 45 pers." [ref=e34] [cursor=pointer]
+        - button "Devis pour un séminaire" [ref=e35] [cursor=pointer]
+        - button "Navette aéroport" [ref=e36] [cursor=pointer]
+        - button "Voyage scolaire" [ref=e37] [cursor=pointer]
+      - generic [ref=e39] [cursor=pointer]:
+        - checkbox "J’accepte que NeoTravel traite mes données personnelles afin de répondre à ma demande de devis, conformément à la Politique de confidentialité." [ref=e40]
+        - generic [ref=e41]:
+          - text: J’accepte que NeoTravel traite mes données personnelles afin de répondre à ma demande de devis, conformément à la
+          - link "Politique de confidentialité" [ref=e42]:
+            - /url: /confidentialite
+          - text: .
+    - paragraph [ref=e43]:
+      - text: Les informations transmises via le chatbot sont utilisées uniquement pour qualifier votre demande de devis. Elles peuvent être traitées par notre agent IA, n8n et Airtable dans le cadre du suivi commercial.
+      - link "En savoir plus" [ref=e44] [cursor=pointer]:
+        - /url: /confidentialite
+      - text: .
+  - generic [ref=e46]:
+    - generic [ref=e47]:
+      - img [ref=e49]
+      - generic [ref=e52]:
+        - generic [ref=e53]: Sécurité
+        - generic [ref=e54]: Autocaristes certifiés & assurés
+    - generic [ref=e55]:
+      - img [ref=e57]
+      - generic [ref=e61]:
+        - generic [ref=e62]: Confort
+        - generic [ref=e63]: Véhicules récents tout équipés
+    - generic [ref=e64]:
+      - img [ref=e66]
+      - generic [ref=e69]:
+        - generic [ref=e70]: Ponctualité
+        - generic [ref=e71]: Suivi en temps réel de votre trajet
+  - generic [ref=e73]:
+    - generic [ref=e74]:
+      - generic [ref=e75]: NOS SERVICES
+      - heading "Un transport adapté à chaque occasion" [level=2] [ref=e76]
+      - paragraph [ref=e77]: Mariages, séminaires, sorties scolaires, transferts aéroport ou événements sportifs — nous mobilisons le véhicule et le chauffeur qu’il vous faut.
+    - generic [ref=e78]:
+      - generic [ref=e79]:
+        - img [ref=e81]
+        - heading "Autocar grand tourisme" [level=3] [ref=e86]
+        - paragraph [ref=e87]: Jusqu'à 63 places, idéal pour les longs trajets, voyages scolaires et excursions de groupe.
+      - generic [ref=e88]:
+        - img [ref=e90]
+        - heading "Minibus & van" [level=3] [ref=e92]
+        - paragraph [ref=e93]: De 8 à 22 places avec chauffeur, parfait pour les petits groupes et transferts professionnels.
+      - generic [ref=e94]:
+        - img [ref=e96]
+        - heading "Événementiel & séminaires" [level=3] [ref=e98]
+        - paragraph [ref=e99]: Coordination de flottes pour congrès, mariages et déplacements d'entreprise sur mesure.
+      - generic [ref=e100]:
+        - img [ref=e102]
+        - heading "Navette aéroport" [level=3] [ref=e104]
+        - paragraph [ref=e105]: Transferts ponctuels vers et depuis les aéroports et gares, avec suivi des horaires de vol.
+  - generic [ref=e107]:
+    - generic [ref=e108]:
+      - generic [ref=e109]: COMMENT ÇA MARCHE
+      - heading "Votre devis en 3 étapes" [level=2] [ref=e110]
+      - paragraph [ref=e111]: Un assistant IA qualifie votre demande, un moteur déterministe calcule le tarif, un conseiller valide avant l’envoi.
+    - generic [ref=e112]:
+      - generic [ref=e113]:
+        - generic [ref=e114]: ÉTAPE 01
+        - heading "Décrivez votre trajet" [level=3] [ref=e115]
+        - paragraph [ref=e116]: Départ, destination, dates et nombre de passagers. Quelques secondes suffisent.
+      - generic [ref=e117]:
+        - generic [ref=e118]: ÉTAPE 02
+        - heading "L’agent IA estime" [level=3] [ref=e119]
+        - paragraph [ref=e120]: L’assistant pose les bonnes questions et calcule un tarif indicatif, traçable et sans surprise.
+      - generic [ref=e121]:
+        - generic [ref=e122]: ÉTAPE 03
+        - heading "Recevez votre devis" [level=3] [ref=e123]
+        - paragraph [ref=e124]: Un conseiller confirme la distance et vous envoie le devis définitif sous 24 h.
+        - button "Démarrer avec l’agent IA" [ref=e125] [cursor=pointer]
+  - generic [ref=e128]:
+    - generic [ref=e129]:
+      - generic [ref=e130]: NOTRE FLOTTE
+      - heading "Des véhicules récents, entretenus et équipés" [level=2] [ref=e131]
+      - paragraph [ref=e132]: "Autocars, minibus, vans et navettes : un parc partenaire varié pour répondre à tous vos besoins de mobilité de groupe, partout en Europe."
+      - list [ref=e133]:
+        - listitem [ref=e134]: Autocars grand tourisme 50 à 63 places
+        - listitem [ref=e136]: Minibus & vans 8 à 22 places
+        - listitem [ref=e138]: Bus privé & VIP haut de gamme
+        - listitem [ref=e140]: Wi-Fi, climatisation, prises USB & soute
+      - button "Demander un devis" [ref=e142] [cursor=pointer]:
+        - text: Demander un devis
+        - img [ref=e143]
+    - img "Flotte Neotravel" [ref=e146]
+  - generic [ref=e148]:
+    - generic [ref=e149]:
+      - generic [ref=e150]: AVIS CLIENTS
+      - heading "Ils nous font confiance" [level=2] [ref=e151]
+    - generic [ref=e152]:
+      - generic [ref=e153]:
+        - generic [ref=e154]:
+          - img [ref=e155]
+          - img [ref=e157]
+          - img [ref=e159]
+          - img [ref=e161]
+          - img [ref=e163]
+        - paragraph [ref=e165]: « Devis reçu en quelques minutes et chauffeur impeccable pour notre séminaire de 48 personnes. On recommande sans hésiter. »
+        - generic [ref=e166]:
+          - generic [ref=e167]: CR
+          - generic [ref=e168]:
+            - generic [ref=e169]: Camille Roux
+            - generic [ref=e170]: Responsable événementiel
+      - generic [ref=e171]:
+        - generic [ref=e172]:
+          - img [ref=e173]
+          - img [ref=e175]
+          - img [ref=e177]
+          - img [ref=e179]
+          - img [ref=e181]
+        - paragraph [ref=e183]: "« Transfert aéroport pour notre équipe : ponctuel, confortable et un suivi en temps réel très rassurant. »"
+        - generic [ref=e184]:
+          - generic [ref=e185]: TM
+          - generic [ref=e186]:
+            - generic [ref=e187]: Thomas Mercier
+            - generic [ref=e188]: Office manager
+      - generic [ref=e189]:
+        - generic [ref=e190]:
+          - img [ref=e191]
+          - img [ref=e193]
+          - img [ref=e195]
+          - img [ref=e197]
+          - img [ref=e199]
+        - paragraph [ref=e201]: "« Sortie scolaire de 2 cars : organisation simple, tarif clair dès le départ et chauffeurs très professionnels. »"
+        - generic [ref=e202]:
+          - generic [ref=e203]: SL
+          - generic [ref=e204]:
+            - generic [ref=e205]: Sophie Laurent
+            - generic [ref=e206]: Directrice d'école
+  - generic [ref=e208]:
+    - generic [ref=e209]:
+      - heading "Prêt à réserver votre prochain trajet ?" [level=2] [ref=e210]
+      - paragraph [ref=e211]: Obtenez un devis indicatif en quelques minutes, sans engagement.
+    - button "Parler à l’agent IA" [ref=e213] [cursor=pointer]
+  - contentinfo [ref=e214]:
+    - generic [ref=e215]:
+      - generic [ref=e216]:
+        - img "Neotravel" [ref=e217]
+        - paragraph [ref=e218]: Location d’autocar, minibus et bus privé avec chauffeur. Votre trajet, notre priorité.
+        - generic [ref=e219]: 09 80 40 04 84
+      - generic [ref=e220]:
+        - generic [ref=e221]: Société
+        - generic [ref=e222]:
+          - link "Qui sommes-nous" [ref=e223] [cursor=pointer]:
+            - /url: "#"
+          - link "Services & garanties" [ref=e224] [cursor=pointer]:
+            - /url: "#"
+          - link "Notre flotte" [ref=e225] [cursor=pointer]:
+            - /url: "#"
+          - link "Avis clients" [ref=e226] [cursor=pointer]:
+            - /url: "#"
+          - link "Blog" [ref=e227] [cursor=pointer]:
+            - /url: "#"
+      - generic [ref=e228]:
+        - generic [ref=e229]: Contact
+        - generic [ref=e230]:
+          - link "09 80 40 04 84" [ref=e231] [cursor=pointer]:
+            - /url: tel:0980400484
+          - link "contact@neotravel.fr" [ref=e232] [cursor=pointer]:
+            - /url: mailto:contact@neotravel.fr
+          - generic [ref=e233]: Du lundi au samedi, 8h–20h
+        - button "Devis gratuit" [ref=e234] [cursor=pointer]
+    - generic [ref=e235]:
+      - generic [ref=e236]: © 2026 Neotravel — Tous droits réservés
+      - generic [ref=e237]:
+        - link "Mentions légales" [ref=e238] [cursor=pointer]:
+          - /url: /mentions-legales
+        - link "CGV" [ref=e239] [cursor=pointer]:
+          - /url: /cgv
+        - link "Confidentialité" [ref=e240] [cursor=pointer]:
+          - /url: /confidentialite
+        - link "Cookies" [ref=e241] [cursor=pointer]:
+          - /url: /cookies

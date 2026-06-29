@@ -21,17 +21,31 @@ function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
-// Aplatit la réponse n8n, qu'elle soit "plate" { message, slots, ... }
-// ou imbriquée sous { output: { message, slots, ... } } (Structured Output Parser).
-function normalize(data: unknown): ChatResponse {
-  let p: Record<string, unknown> = isObject(data) ? data : {};
+function parseJsonObject(value: unknown): Record<string, unknown> | null {
+  if (isObject(value)) return value;
+  if (typeof value !== "string") return null;
 
-  // Déballe un éventuel niveau "output" qui contiendrait l'objet structuré.
-  if (
-    isObject(p.output) &&
-    ("message" in p.output || "slots" in p.output || "complete" in p.output)
-  ) {
-    p = p.output;
+  try {
+    const parsed = JSON.parse(value);
+    return isObject(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+// Flattens n8n responses, either "flat" { message, slots, ... }
+// or nested under { output: { message, slots, ... } } (Structured Output Parser).
+function normalize(data: unknown): ChatResponse {
+  let p: Record<string, unknown> = parseJsonObject(data) ?? {};
+
+  // Unwrap a structured object, even when n8n returns it as a JSON string.
+  const nested =
+    parseJsonObject(p.output) ??
+    parseJsonObject(p.message) ??
+    parseJsonObject(p.reply) ??
+    parseJsonObject(p.text);
+  if (nested && ("message" in nested || "slots" in nested || "complete" in nested)) {
+    p = nested;
   }
 
   const replyRaw =
