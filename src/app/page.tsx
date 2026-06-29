@@ -589,7 +589,7 @@ function Landing({
     if (reply) {
       addMsg("agent", reply);
     } else {
-      respond(queryText);
+      respond(text);
     }
   };
 
