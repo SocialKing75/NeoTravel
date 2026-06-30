@@ -54,7 +54,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (!credentials?.token) return null;
         // Bypass client pour tests locaux
         if (credentials.token === "bypass") {
-          return { id: "bypass-client", email: process.env.BYPASS_CLIENT_EMAIL ?? "client@test.fr", name: "Client Test", role: "client" };
+          return { id: "bypass-client", email: process.env.NEXT_PUBLIC_BYPASS_EMAIL ?? process.env.BYPASS_CLIENT_EMAIL ?? "client@test.fr", name: "Client Test", role: "client" };
         }
         try {
           const payload = JSON.parse(
