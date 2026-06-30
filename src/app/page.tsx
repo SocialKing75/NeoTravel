@@ -625,17 +625,6 @@ function Landing({
     }
   };
 
-  const chatTags = [
-    "Paris → Lyon, 45 pers.",
-    "Devis pour un séminaire",
-    "Navette aéroport",
-    "Voyage scolaire",
-  ];
-
-  const insertTag = (tag: string) => {
-    setChatInput(prev => prev ? `${prev} ${tag}` : tag);
-  };
-
   const onQuick = async (text: string) => {
     addMsg("user", text);
     setAgentTyping(true);
@@ -731,11 +720,6 @@ function Landing({
                     <button key={q} type="button" className="nt-quick" onClick={() => onQuick(q)}>{q}</button>
                   ))}
                 </div>
-                <div className="nt-chat-tags">
-                  {chatTags.map(tag => (
-                    <button key={tag} type="button" className="nt-chat-tag" onClick={() => insertTag(tag)}>{tag}</button>
-                  ))}
-                </div>
               </div>
             )}
 
@@ -796,11 +780,6 @@ function Landing({
                       <path d="m13 6 6 6-6 6" />
                     </svg>
                   </button>
-                </div>
-                <div className="nt-search-tags">
-                  {['Paris → Lyon, 45 pers.', 'Devis pour un séminaire', 'Navette aéroport', 'Voyage scolaire'].map(tag => (
-                    <button key={tag} type="button" onClick={() => setChatInput(tag)}>{tag}</button>
-                  ))}
                 </div>
                 <div ref={consentRef} className={`rgpd-consent${consentShake ? " rgpd-shake" : ""}`}>
                   <label>
