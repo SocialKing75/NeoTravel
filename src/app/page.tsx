@@ -196,6 +196,51 @@ function buildInitialDemandes(): Demande[] {
   ];
 }
 
+type ApiDemande = {
+  id: string;
+  prospect: string;
+  email: string;
+  tel: string;
+  depart: string;
+  destination: string;
+  passagers: number;
+  tripDate: string;
+  statut: string;
+  tarif: number;
+  createdAt: string;
+};
+
+const KNOWN_STATUTS: DemandeStatus[] = [
+  "Nouveau", "En cours", "Devis envoyé", "En attente", "En relance", "Accepté", "Refusé",
+];
+
+function mapApiDemande(a: ApiDemande): Demande {
+  const statut = (KNOWN_STATUTS as string[]).includes(a.statut) ? (a.statut as DemandeStatus) : "Nouveau";
+  const tarif = a.tarif > 0 ? { tarifMin: a.tarif, tarifMax: a.tarif } : estimateTarif(a.passagers);
+  return {
+    id: a.id,
+    prospect: a.prospect,
+    email: a.email,
+    tel: a.tel,
+    depart: a.depart,
+    destination: a.destination,
+    passagers: a.passagers,
+    tripDate: a.tripDate,
+    vehicule: "À déterminer",
+    statut,
+    tarifMin: tarif.tarifMin,
+    tarifMax: tarif.tarifMax,
+    createdAt: a.createdAt ? new Date(a.createdAt) : new Date(),
+    messages: [],
+  };
+}
+
+function mergeDemandes(incoming: Demande[], prev: Demande[]): Demande[] {
+  const existing = new Set(prev.map(d => d.id));
+  const fresh = incoming.filter(d => !existing.has(d.id));
+  return fresh.length ? [...fresh, ...prev] : prev;
+}
+
 export default function Home() {
   const { data: session } = useSession();
   const [screen, setScreen] = useState<Screen>("landing");
@@ -207,11 +252,46 @@ export default function Home() {
   const [generatingDevisId, setGeneratingDevisId] = useState<string | null>(null);
   const demandeCounter = useRef(42);
   const now = useNow();
+  const screenRef = useRef(screen);
+  const knownDemandeIds = useRef<Set<string> | null>(null);
+
+  useEffect(() => { screenRef.current = screen; }, [screen]);
 
   useEffect(() => {
     if ((session?.user as { role?: string })?.role === "agent") {
       setScreen("dashboard");
     }
+  }, [session]);
+
+  // Polling des vraies demandes (Airtable via /api/demandes) → +1 sur la cloche.
+  useEffect(() => {
+    if ((session?.user as { role?: string })?.role !== "agent") return;
+    let active = true;
+    const poll = async () => {
+      let rows: ApiDemande[];
+      try {
+        const res = await fetch("/api/demandes", { cache: "no-store" });
+        if (!res.ok) return;
+        rows = await res.json();
+      } catch { return; }
+      if (!active || !Array.isArray(rows)) return;
+      const mapped = rows.map(mapApiDemande);
+
+      if (knownDemandeIds.current === null) {
+        // 1er chargement : on adopte sans notifier
+        knownDemandeIds.current = new Set(mapped.map(d => d.id));
+        setDemandes(prev => mergeDemandes(mapped, prev));
+        return;
+      }
+      const fresh = mapped.filter(d => !knownDemandeIds.current!.has(d.id));
+      if (fresh.length === 0) return;
+      fresh.forEach(d => knownDemandeIds.current!.add(d.id));
+      setDemandes(prev => mergeDemandes(fresh, prev));
+      if (screenRef.current !== "demandes") setAgentNotifications(n => n + fresh.length);
+    };
+    poll();
+    const id = setInterval(poll, 20000);
+    return () => { active = false; clearInterval(id); };
   }, [session]);
 
   const showToast = (text: string, type: "success" | "error" = "success") => {
@@ -252,7 +332,7 @@ export default function Home() {
       },
       ...list,
     ]);
-    setAgentNotifications(n => n + 1);
+    if (screen !== "demandes") setAgentNotifications(n => n + 1);
 
     const N8N_SAVE_URL = process.env.NEXT_PUBLIC_N8N_SAVE_DEMANDE_URL ?? "http://localhost:5678/webhook/save-demande";
     fetch(N8N_SAVE_URL, {
@@ -399,7 +479,6 @@ export default function Home() {
       },
       ...list,
     ]);
-    setAgentNotifications(n => n + 1);
     selectDemande(id);
   };
 
@@ -422,6 +501,7 @@ export default function Home() {
           screen={screen}
           notifications={agentNotifications}
           now={now}
+          onBell={() => goScreen("demandes")}
           onNewDemande={() => setShowNewDemande(true)}
         />
         {screen === "dashboard" && (
@@ -956,7 +1036,7 @@ function Landing({
               </button>
             </div>
             <div className="nt-fleet-img">
-              <img src="/assets/fleet.png" alt="Flotte Neotravel" />
+              <img src="/assets/back.png" alt="Flotte Neotravel" />
             </div>
           </div>
         </div>
@@ -1143,11 +1223,13 @@ function Topbar({
   screen,
   notifications,
   now,
+  onBell,
   onNewDemande,
 }: {
   screen: Screen;
   notifications: number;
   now: Date;
+  onBell: () => void;
   onNewDemande: () => void;
 }) {
   const titles: Record<Screen, string> = {
@@ -1168,9 +1250,9 @@ function Topbar({
         <p>{subs[screen]}</p>
       </div>
       <div className="topbar-actions topbar-operator-actions">
-        <button type="button" className="icon-btn topbar-bell" aria-label="Notifications">
+        <button type="button" className="icon-btn topbar-bell" aria-label="Notifications" onClick={onBell}>
           <IcoBell />
-          {notifications > 0 && <span className="topbar-bell-dot" />}
+          {notifications > 0 && <span className="topbar-bell-dot">{notifications > 9 ? "9+" : notifications}</span>}
         </button>
         <span className="topbar-date">{today}</span>
         <button type="button" className="topbar-new-btn" onClick={onNewDemande}><IcoPlus />Nouvelle demande</button>
@@ -1611,7 +1693,7 @@ function Demandes({
                   onClick={() => handleGenerateDevis(selected.id)}
                   disabled={generatingDevisId === selected.id}
                 >
-                  <IcoFile />Générer le devis
+                  <IcoFile />Voir le devis
                 </button>
                 <button type="button" className="table-btn" onClick={() => handleExport(selected.id)}>
                   <IcoExport />Exporter
