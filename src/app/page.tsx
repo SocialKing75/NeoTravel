@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useSession } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import Link from "next/link";
 import { createDevisRequest } from "@/services";
 import { formatDistance } from "@/utils/distanceCalculator";
@@ -1211,7 +1211,7 @@ function Sidebar({ screen, setScreen, demandesCount }: { screen: Screen; setScre
           <strong>Agent Commercial</strong>
           <span>agent@neotravel.fr</span>
         </section>
-        <button type="button" className="sidebar-logout" aria-label="Se déconnecter" onClick={() => setScreen("landing")}>
+        <button type="button" className="sidebar-logout" aria-label="Se déconnecter" onClick={() => signOut({ callbackUrl: "/login" })}>
           <IcoLogout />
         </button>
       </div>
