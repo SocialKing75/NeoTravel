@@ -482,6 +482,8 @@ function Landing({
   const [formTs] = useState(() => Date.now());
   const [sessionId] = useState(() => crypto.randomUUID());
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
   const formRef = useRef<HTMLDivElement>(null);
   const consentRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -609,6 +611,31 @@ function Landing({
     pushAgent(reply);
   };
 
+  const toggleMic = () => {
+    const SR = (window as unknown as { SpeechRecognition?: typeof SpeechRecognition; webkitSpeechRecognition?: typeof SpeechRecognition }).SpeechRecognition
+      ?? (window as unknown as { webkitSpeechRecognition?: typeof SpeechRecognition }).webkitSpeechRecognition;
+    if (!SR) return;
+
+    if (listening && recognitionRef.current) {
+      recognitionRef.current.stop();
+      return;
+    }
+
+    const rec = new SR();
+    rec.lang = "fr-FR";
+    rec.continuous = false;
+    rec.interimResults = false;
+    recognitionRef.current = rec;
+
+    rec.onstart = () => setListening(true);
+    rec.onend = () => setListening(false);
+    rec.onresult = (e: SpeechRecognitionEvent) => {
+      const transcript = e.results[0]?.[0]?.transcript ?? "";
+      setChatInput(prev => prev ? `${prev} ${transcript}` : transcript);
+    };
+    rec.start();
+  };
+
   const sendChat = async () => {
     const text = chatInput.trim();
     if (!text) return;
@@ -706,7 +733,7 @@ function Landing({
                     onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
                     placeholder="Décrivez votre trajet... ex : Paris → Lyon, 45 personnes, 15 juillet"
                   />
-                  <button type="button" className="nt-mic-btn" aria-label="Microphone">
+                  <button type="button" className={`nt-mic-btn${listening ? " nt-mic-active" : ""}`} aria-label={listening ? "Arrêter" : "Microphone"} onClick={toggleMic}>
                     <img src="/assets/mic.svg" alt="" width="20" height="20" />
                   </button>
                   <input
@@ -727,7 +754,8 @@ function Landing({
                 </div>
                 {attachedFile && (
                   <div className="nt-attached-file">
-                    <span>📎 {attachedFile.name}</span>
+                    <img src="/assets/attach.png" alt="" width="14" height="14" style={{ opacity: .5 }} />
+                    <span>{attachedFile.name}</span>
                     <button type="button" onClick={() => { setAttachedFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }} aria-label="Retirer le fichier">×</button>
                   </div>
                 )}
