@@ -481,8 +481,10 @@ function Landing({
   const [consentShake, setConsentShake] = useState(false);
   const [formTs] = useState(() => Date.now());
   const [sessionId] = useState(() => crypto.randomUUID());
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const formRef = useRef<HTMLDivElement>(null);
   const consentRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeDemandeId = useRef<string | null>(null);
   const tripInfo = useRef<TripInfo>({});
@@ -704,12 +706,31 @@ function Landing({
                     onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
                     placeholder="Décrivez votre trajet... ex : Paris → Lyon, 45 personnes, 15 juillet"
                   />
+                  <button type="button" className="nt-mic-btn" aria-label="Microphone">
+                    <img src="/assets/mic.svg" alt="" width="20" height="20" />
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                    style={{ display: "none" }}
+                    onChange={e => setAttachedFile(e.target.files?.[0] ?? null)}
+                  />
+                  <button type="button" className="nt-mic-btn" aria-label="Joindre un fichier Excel" onClick={() => fileInputRef.current?.click()}>
+                    <img src="/assets/attach.png" alt="" width="20" height="20" />
+                  </button>
                   <button className="nt-send-btn" onClick={sendChat} aria-label="Envoyer">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0E1C2B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" />
                     </svg>
                   </button>
                 </div>
+                {attachedFile && (
+                  <div className="nt-attached-file">
+                    <span>📎 {attachedFile.name}</span>
+                    <button type="button" onClick={() => { setAttachedFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }} aria-label="Retirer le fichier">×</button>
+                  </div>
+                )}
                 <div className="nt-chat-quicks">
                   {[
                     "Aller-retour",

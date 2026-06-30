@@ -461,10 +461,13 @@ a { color: inherit; text-decoration: none; }
 }
 
 .nt-chat-input {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 10px;
+  display: flex;
+  flex-direction: row;
   align-items: center;
+  gap: 6px;
+}
+.nt-chat-input input {
+  flex: 1;
 }
 
 .nt-chat-icons {
@@ -517,7 +520,6 @@ a { color: inherit; text-decoration: none; }
 }
 
 .nt-chat-input input {
-  width: 100%;
   border: 1px solid rgba(14,28,43,.14);
   border-radius: 100px;
   padding: 11px 16px;
@@ -1520,6 +1522,40 @@ a { color: inherit; text-decoration: none; }
 .nt-drawer-input textarea:focus {
   border-color: var(--nt-lime);
   box-shadow: 0 0 0 3px rgba(94,124,90,.2);
+}
+
+.nt-mic-btn {
+  flex: none;
+  width: 38px; height: 38px;
+  border-radius: 9px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .2s ease;
+}
+.nt-mic-btn:hover { background: rgba(0,0,0,.07); }
+
+.nt-attached-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  background: rgba(194,232,18,.15);
+  border-radius: 8px;
+  font-size: 12.5px;
+  color: #3a4a30;
+}
+.nt-attached-file button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  color: #666;
+  padding: 0 2px;
 }
 
 .nt-send-btn {
