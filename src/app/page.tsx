@@ -483,7 +483,7 @@ function Landing({
   const [sessionId] = useState(() => crypto.randomUUID());
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [listening, setListening] = useState(false);
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const recognitionRef = useRef<{ stop: () => void } | null>(null);
   const formRef = useRef<HTMLDivElement>(null);
   const consentRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
